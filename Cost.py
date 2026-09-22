@@ -1,5 +1,5 @@
 import pandas as pd
-import Lib.EnergyDemand
+import EnergyDemand
 
 
 class Source:
@@ -122,8 +122,8 @@ if __name__ == "__main__":
     co2_demand = pd.read_json("co2_demand.json")
 
     # Calculate the maximum supply and demand for each energy source, then use this as inputs to the cost function
-    chp_demand, chp_max_power = Lib.EnergyDemand.CHP(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    chp_supply = Lib.EnergyDemand.CHP(heat_demand, light_demand, co2_demand).calculate_supply(chp_max_power, chp_max_power, chp_demand)
+    chp_demand, chp_max_power = EnergyDemand.CHP(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    chp_supply = EnergyDemand.CHP(heat_demand, light_demand, co2_demand).calculate_supply(chp_max_power, chp_max_power, chp_demand)
     chp_fuel = chp_supply["Fuel Requirement"].sum()
     energy_output = chp_supply["Yearly Electricity Output"].sum()
     co2_emissions = chp_supply["Direct CO2 Emissions"].sum()
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     print("\nCalculating CHP cost...")
     chp_capex_npv, chp_opex_npv, chp_fuel_npv, chp_co2_tax, chp_lifetime_cost, chp_yearly_costs, chp_lcoe = chp.constant_cost()
 
-    geothermal_demand, geo_max_power = Lib.EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    geo_supply = Lib.EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand).calculate_supply(geo_max_power, geo_max_power)
+    geothermal_demand, geo_max_power = EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    geo_supply = EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand).calculate_supply(geo_max_power, geo_max_power)
     geothermal_electricity = geo_supply["Electricity for Heat"].sum()
     geo_energy_output = geo_supply["Yearly Heat Output"].sum()
     co2_emissions = geo_supply["Direct CO2 Emissions"].sum()
@@ -164,8 +164,8 @@ if __name__ == "__main__":
     (geo_capex_npv, geo_opex_npv, geo_fuel_npv, geo_co2_tax, geo_lifetime_cost, geo_yearly_costs,
      geo_lcoe) = geothermal.constant_cost()
 
-    gshp_demand, gshp_max_power = Lib.EnergyDemand.GSHP(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    gshp_supply = Lib.EnergyDemand.GSHP(heat_demand, light_demand, co2_demand).calculate_supply(gshp_max_power, gshp_max_power)
+    gshp_demand, gshp_max_power = EnergyDemand.GSHP(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    gshp_supply = EnergyDemand.GSHP(heat_demand, light_demand, co2_demand).calculate_supply(gshp_max_power, gshp_max_power)
     gshp_fuel = gshp_supply["Electricity for Heat"].sum()
     gshp_energy_output = gshp_supply["Yearly Heat Output"].sum()
     co2_emissions = gshp_supply["Direct CO2 Emissions"].sum()
@@ -185,8 +185,8 @@ if __name__ == "__main__":
     (gshp_capex_npv, gshp_opex_npv, gshp_fuel_npv, gshp_co2_tax, gshp_lifetime_cost, gshp_yearly_costs,
      gshp_lcoe) = gshp.constant_cost()
 
-    grid_demand, grid_max_power = Lib.EnergyDemand.Grid(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    grid_supply = Lib.EnergyDemand.Grid(heat_demand, light_demand, co2_demand).calculate_supply(grid_max_power, grid_max_power)
+    grid_demand, grid_max_power = EnergyDemand.Grid(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    grid_supply = EnergyDemand.Grid(heat_demand, light_demand, co2_demand).calculate_supply(grid_max_power, grid_max_power)
     grid_fuel = grid_supply["Electricity for Light"].sum()
     grid_energy_output = grid_supply["Yearly Electricity Output"].sum()
     co2_emissions = grid_supply["Direct CO2 Emissions"].sum()
@@ -205,8 +205,8 @@ if __name__ == "__main__":
 
     grid_capex_npv, grid_opex_npv, grid_fuel_npv, grid_co2_tax, grid_lifetime_cost, grid_yearly_costs, grid_lcoe = grid.constant_cost()
 
-    wasteheat_demand, wasteheat_max_power = Lib.EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    wasteheat_supply = Lib.EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand).calculate_supply(wasteheat_max_power, wasteheat_max_power)
+    wasteheat_demand, wasteheat_max_power = EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    wasteheat_supply = EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand).calculate_supply(wasteheat_max_power, wasteheat_max_power)
     waseteheat_fuel = wasteheat_supply["Steam Required"].sum()
     waste_energy_output = wasteheat_supply["Yearly Heat Output"].sum()
     co2_emissions = wasteheat_supply["Direct CO2 Emissions"].sum()
@@ -226,8 +226,8 @@ if __name__ == "__main__":
     (wasteheat_capex_npv, wasteheat_opex_npv, wasteheat_fuel_npv, wasteheat_co2_tax, wasteheat_lifetime_cost, wasteheat_yearly_costs,
      wasteheat_lcoe) = wasteheat.constant_cost()
 
-    solar_demand, solar_max_power = Lib.EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    solar_supply = Lib.EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand).calculate_supply(solar_max_power, solar_max_power)
+    solar_demand, solar_max_power = EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    solar_supply = EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand).calculate_supply(solar_max_power, solar_max_power)
     solar_energy_output = solar_supply["Yearly Electricity Output"].sum()
     co2_emissions = solar_supply["Direct CO2 Emissions"].sum()
 
@@ -246,8 +246,8 @@ if __name__ == "__main__":
     (solar_capex_npv, solar_opex_npv, solar_fuel_npv, solar_co2_tax, solar_lifetime_cost, solar_yearly_costs,
      solar_lcoe) = solar.constant_cost()
 
-    boiler_demand, boiler_max_power = Lib.EnergyDemand.Boiler(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    boiler_supply = Lib.EnergyDemand.Boiler(heat_demand, light_demand, co2_demand).calculate_supply(boiler_max_power, boiler_max_power, boiler_demand)
+    boiler_demand, boiler_max_power = EnergyDemand.Boiler(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    boiler_supply = EnergyDemand.Boiler(heat_demand, light_demand, co2_demand).calculate_supply(boiler_max_power, boiler_max_power, boiler_demand)
     boiler_fuel = boiler_supply["Fuel Requirement"].sum()
     boiler_energy_output = boiler_supply["Yearly Heat Output"].sum()
     co2_emissions = boiler_supply["Direct CO2 Emissions"].sum()
@@ -267,8 +267,8 @@ if __name__ == "__main__":
     (boiler_capex_npv, boiler_opex_npv, boiler_fuel_npv, boiler_co2_tax, boiler_lifetime_cost, boiler_yearly_costs,
      boiler_lcoe) = boilers.constant_cost()
 
-    co2_max_demand, co2_max_power = Lib.EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand).calculate_max_supply()
-    co2_supply = Lib.EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand).calculate_supply(co2_max_power, co2_max_power)
+    co2_max_demand, co2_max_power = EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand).calculate_max_supply()
+    co2_supply = EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand).calculate_supply(co2_max_power, co2_max_power)
     co2_fuel = co2_supply["CO2 Requirement"].sum()
     co2_emissions = co2_supply["Direct CO2 Emissions"].sum()
 
