@@ -1,16 +1,21 @@
+import os
+import sys
 import plotly.express as px
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 from . import ids
 
-# Import demand data directly using the same approach as CO2 demand
-import sys
-sys.path.append(r"C:\Users\phoen\OneDrive - National University of Ireland, Galway\Masters\Thesis\Python Framework")
-from Lib.InputCalculations import calculate_inputs
-from Lib.HTCoefficients import calculate_htc
-from Lib.HeatDemand import calculate_heatdemand
-from Lib.LightDemand import calculate_lightdemand
+# Add the Lib folder (three levels up from this file: components -> Dash -> Lib)
+# to Python's search path, so we can import Lib modules directly.
+LIB_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+from InputCalculations import calculate_inputs
+from HTCoefficients import calculate_htc
+from HeatDemand import calculate_heatdemand
+from LightDemand import calculate_lightdemand
 
 # Get the data using the already defined imports
 inputs_data = calculate_inputs()
@@ -108,11 +113,6 @@ def render_heat_demand(app: Dash) -> html.Div:
                             html.Tr([
                                 html.Td("Total Annual Demand", style={"padding": "8px"}),
                                 html.Td(f"{heat_demand['QnetMWh'].sum():.2f} MWh",
-                                        style={"textAlign": "right", "padding": "8px"})
-                            ]),
-                            html.Tr([
-                                html.Td("Total Annual Demand", style={"padding": "8px"}),
-                                html.Td(f"{heat_demand['QnetMWh'].sum() / 3600:.2f} MWh",
                                         style={"textAlign": "right", "padding": "8px"})
                             ])
                         ])
