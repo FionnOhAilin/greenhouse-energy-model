@@ -1,12 +1,14 @@
+import os
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import json
 from . import ids
 
 
-# Load the optimization results data
+# Load the optimisation results data
 def load_optimization_data():
-    json_path = r"C:\Users\phoen\OneDrive - National University of Ireland, Galway\Masters\Thesis\Python Framework\Lib\optimization_results.json"
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    json_path = os.path.join(base_dir, "optimisation_results.json")
     with open(json_path, "r") as f:
         return json.load(f)
 
