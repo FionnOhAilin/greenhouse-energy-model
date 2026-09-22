@@ -1,3 +1,4 @@
+import os
 import plotly.express as px
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
@@ -6,9 +7,9 @@ import pandas as pd
 from . import ids
 
 
-# Load the optimisation results data
 def load_optimisation_data():
-    json_path = r"C:\Users\phoen\OneDrive - National University of Ireland, Galway\Masters\Thesis\Python Framework\Lib\optimisation_results.json"
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    json_path = os.path.join(base_dir, "optimisation_results.json")
     with open(json_path, "r") as f:
         return json.load(f)
 
