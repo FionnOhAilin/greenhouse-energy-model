@@ -158,3 +158,5 @@ if __name__ == "__main__":
     co2_demand = calculate_co2demand(inputs, htc, heatdemand, lightdemand)
 
     dump(co2_demand, "co2_demand.joblib")
+#another harmless comment to check if git pushing mechanism is wokring in vscode
+
