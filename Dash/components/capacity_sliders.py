@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 import pandas as pd
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
@@ -7,15 +9,22 @@ import plotly.graph_objects as go
 import numpy as np
 
 from . import ids
-import Lib.Cost
-import Lib.EnergyDemand
+
+# Add the Lib folder (three levels up from this file: components -> Dash -> Lib)
+# to Python's search path, so we can import Lib modules directly.
+LIB_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+import Cost
+import EnergyDemand
 
 
 def load_optimisation_data():
     """Load optimisation results data"""
     try:
-        # Use the correct file path
-        file_path = r"C:\Users\phoen\OneDrive - National University of Ireland, Galway\Masters\Thesis\Python Framework\Lib\optimisation_results.json"
+        # Dynamic path: optimisation_results.json lives in the Lib folder
+        file_path = os.path.join(LIB_DIR, "optimisation_results.json")
         print(f"Attempting to load optimisation data from: {file_path}")
 
         with open(file_path, 'r') as f:
@@ -37,19 +46,13 @@ def load_optimisation_data():
 def get_demand_data():
     """Generate demand data directly by running the calculation functions"""
     try:
-        import sys
-        import os
-        # Add the Lib directory to the path so we can import modules
-        lib_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if lib_dir not in sys.path:
-            sys.path.append(lib_dir)
-
-        # Import the demand calculation functions
-        from Lib.InputCalculations import calculate_inputs
-        from Lib.HTCoefficients import calculate_htc
-        from Lib.HeatDemand import calculate_heatdemand
-        from Lib.LightDemand import calculate_lightdemand
-        from Lib.CO2Demand import calculate_co2demand
+        # Import the demand calculation functions (kept for reference; not
+        # currently invoked below - the JSON files are read directly instead)
+        from InputCalculations import calculate_inputs
+        from HTCoefficients import calculate_htc
+        from HeatDemand import calculate_heatdemand
+        from LightDemand import calculate_lightdemand
+        from CO2Demand import calculate_co2demand
 
         # Calculate demand data directly
         # inputs_data = calculate_inputs()
@@ -57,9 +60,9 @@ def get_demand_data():
         # heat_demand = calculate_heatdemand(inputs_data, htc)
         # light_demand = calculate_lightdemand(inputs_data, htc, heat_demand)
         # co2_demand = calculate_co2demand(inputs_data, htc, heat_demand, light_demand)
-        heat_demand = pd.read_json("heat_demand.json")
-        light_demand = pd.read_json("light_demand.json")
-        co2_demand = pd.read_json("co2_demand.json")
+        heat_demand = pd.read_json(os.path.join(LIB_DIR, "heat_demand.json"))
+        light_demand = pd.read_json(os.path.join(LIB_DIR, "light_demand.json"))
+        co2_demand = pd.read_json(os.path.join(LIB_DIR, "co2_demand.json"))
 
         return heat_demand, light_demand, co2_demand
     except Exception as e:
@@ -81,28 +84,28 @@ def get_max_powers():
         heat_demand, light_demand, co2_demand = get_demand_data()
 
         # Calculate maximum power for each energy source
-        chp = Lib.EnergyDemand.CHP(heat_demand, light_demand, co2_demand)
+        chp = EnergyDemand.CHP(heat_demand, light_demand, co2_demand)
         _, chp_max_power = chp.calculate_demand()
 
-        geo = Lib.EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand)
+        geo = EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand)
         _, geo_max_power = geo.calculate_demand()
 
-        gshp = Lib.EnergyDemand.GSHP(heat_demand, light_demand, co2_demand)
+        gshp = EnergyDemand.GSHP(heat_demand, light_demand, co2_demand)
         _, gshp_max_power = gshp.calculate_demand()
 
-        solar = Lib.EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand)
+        solar = EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand)
         _, solar_max_power = solar.calculate_demand()
 
-        wasteheat = Lib.EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand)
+        wasteheat = EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand)
         _, wasteheat_max_power = wasteheat.calculate_demand()
 
-        grid = Lib.EnergyDemand.Grid(heat_demand, light_demand, co2_demand)
+        grid = EnergyDemand.Grid(heat_demand, light_demand, co2_demand)
         _, grid_max_power = grid.calculate_demand()
 
-        boiler = Lib.EnergyDemand.Boiler(heat_demand, light_demand, co2_demand)
+        boiler = EnergyDemand.Boiler(heat_demand, light_demand, co2_demand)
         _, boiler_max_power = boiler.calculate_demand()
 
-        co2_import = Lib.EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand)
+        co2_import = EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand)
         _, co2_max_power = co2_import.calculate_demand()
 
         # Return dictionary of max powers
@@ -281,12 +284,12 @@ def register_callbacks(app: Dash):
 
             # Calculate CHP cost if capacity > 0
             if chp > 0.0001:
-                chp_demand, chp_max_power = Lib.EnergyDemand.CHP(heat_demand, light_demand,
+                chp_demand, chp_max_power = EnergyDemand.CHP(heat_demand, light_demand,
                                                                  co2_demand).calculate_max_supply()
                 # Fixed code:
-                chp_instance = Lib.EnergyDemand.CHP(heat_demand, light_demand, co2_demand)
+                chp_instance = EnergyDemand.CHP(heat_demand, light_demand, co2_demand)
                 chp_supply = chp_instance.calculate_supply(chp, chp_max_power, chp_demand)
-                chp_obj = Lib.Cost.CHP(
+                chp_obj = Cost.CHP(
                     capital_cost=1.2e6 * chp ** -0.4,
                     base_capex=0,
                     operational_cost=9.3,
@@ -315,11 +318,11 @@ def register_callbacks(app: Dash):
 
             # Calculate Geothermal cost if capacity > 0
             if geothermal > 0.0001:
-                geo_demand, geo_max_power = Lib.EnergyDemand.Geothermal(heat_demand, light_demand,
+                geo_demand, geo_max_power = EnergyDemand.Geothermal(heat_demand, light_demand,
                                                                         co2_demand).calculate_max_supply()
-                geo_instance = Lib.EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand)
+                geo_instance = EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand)
                 geo_supply = geo_instance.calculate_supply(geothermal, geo_max_power)
-                geo_obj = Lib.Cost.Geothermal(
+                geo_obj = Cost.Geothermal(
                     capital_cost=2890000 * geothermal ** -0.45 + 1.2e6,
                     base_capex=0,
                     operational_cost=11000 * geothermal /
@@ -350,11 +353,11 @@ def register_callbacks(app: Dash):
 
             # Calculate GSHP cost if capacity > 0
             if gshp > 0.0001:
-                gshp_demand, gshp_max_power = Lib.EnergyDemand.GSHP(heat_demand, light_demand,
+                gshp_demand, gshp_max_power = EnergyDemand.GSHP(heat_demand, light_demand,
                                                                     co2_demand).calculate_max_supply()
-                gshp_instance = Lib.EnergyDemand.GSHP(heat_demand, light_demand, co2_demand)
+                gshp_instance = EnergyDemand.GSHP(heat_demand, light_demand, co2_demand)
                 gshp_supply = gshp_instance.calculate_supply(gshp, gshp_max_power)
-                gshp_obj = Lib.Cost.GSHP(
+                gshp_obj = Cost.GSHP(
                     capital_cost=1297000 * gshp ** -0.21557,
                     base_capex=0,
                     operational_cost=8000 * gshp / gshp_supply["Yearly Heat Output"].sum(),
@@ -383,11 +386,11 @@ def register_callbacks(app: Dash):
 
             # Calculate Solar cost if capacity > 0
             if solar > 0.0001:
-                solar_demand, solar_max_power = Lib.EnergyDemand.SolarPV(heat_demand, light_demand,
+                solar_demand, solar_max_power = EnergyDemand.SolarPV(heat_demand, light_demand,
                                                                          co2_demand).calculate_max_supply()
-                solar_instance = Lib.EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand)
+                solar_instance = EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand)
                 solar_supply = solar_instance.calculate_supply(solar, solar_max_power)
-                solar_obj = Lib.Cost.SolarPV(
+                solar_obj = Cost.SolarPV(
                     capital_cost=1.572e6 * solar ** -0.15 - 1.5e5,
                     base_capex=0,
                     operational_cost=12000 * solar / solar_supply["Yearly Electricity Output"].sum(),
@@ -416,11 +419,11 @@ def register_callbacks(app: Dash):
 
             # Calculate WasteHeat cost if capacity > 0
             if wasteheat > 0.0001:
-                waste_demand, waste_max_power = Lib.EnergyDemand.WasteHeat(heat_demand, light_demand,
+                waste_demand, waste_max_power = EnergyDemand.WasteHeat(heat_demand, light_demand,
                                                                            co2_demand).calculate_max_supply()
-                wasteheat_instance = Lib.EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand)
+                wasteheat_instance = EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand)
                 wasteheat_supply = wasteheat_instance.calculate_supply(wasteheat, waste_max_power)
-                waste_obj = Lib.Cost.WasteHeat(
+                waste_obj = Cost.WasteHeat(
                     capital_cost=0,
                     base_capex=0,
                     operational_cost=0,
@@ -450,11 +453,11 @@ def register_callbacks(app: Dash):
 
             # Calculate Grid cost if capacity > 0
             if grid > 0.0001:
-                grid_demand, grid_max_power = Lib.EnergyDemand.Grid(heat_demand, light_demand,
+                grid_demand, grid_max_power = EnergyDemand.Grid(heat_demand, light_demand,
                                                                     co2_demand).calculate_max_supply()
-                grid_instance = Lib.EnergyDemand.Grid(heat_demand, light_demand, co2_demand)
+                grid_instance = EnergyDemand.Grid(heat_demand, light_demand, co2_demand)
                 grid_supply = grid_instance.calculate_supply(grid, grid_max_power)
-                grid_obj = Lib.Cost.Grid(
+                grid_obj = Cost.Grid(
                     capital_cost=0,
                     base_capex=0,
                     operational_cost=0,
@@ -483,11 +486,11 @@ def register_callbacks(app: Dash):
 
             # Calculate Boiler cost if capacity > 0
             if boiler > 0.0001:
-                boiler_demand, boiler_max_power = Lib.EnergyDemand.Boiler(heat_demand, light_demand,
+                boiler_demand, boiler_max_power = EnergyDemand.Boiler(heat_demand, light_demand,
                                                                           co2_demand).calculate_max_supply()
-                boiler_instance = Lib.EnergyDemand.Boiler(heat_demand, light_demand, co2_demand)
+                boiler_instance = EnergyDemand.Boiler(heat_demand, light_demand, co2_demand)
                 boiler_supply = boiler_instance.calculate_supply(boiler, boiler_max_power, boiler_demand)
-                boiler_obj = Lib.Cost.Boiler(
+                boiler_obj = Cost.Boiler(
                     capital_cost=103000 * boiler ** -0.17,
                     base_capex=0,
                     operational_cost=3900 * boiler / boiler_supply["Yearly Heat Output"].sum(),
@@ -516,11 +519,11 @@ def register_callbacks(app: Dash):
 
             # Calculate CO2 Import cost if capacity > 0
             if co2 > 0.0001:
-                co2_import_demand, co2_max_power = Lib.EnergyDemand.CO2Import(heat_demand, light_demand,
+                co2_import_demand, co2_max_power = EnergyDemand.CO2Import(heat_demand, light_demand,
                                                                               co2_demand).calculate_max_supply()
-                co2_instance = Lib.EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand)
+                co2_instance = EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand)
                 co2_supply = co2_instance.calculate_supply(co2, co2_max_power)
-                co2_obj = Lib.Cost.CO2Import(
+                co2_obj = Cost.CO2Import(
                     capital_cost=0,
                     base_capex=0,
                     operational_cost=0,
@@ -855,7 +858,7 @@ def register_callbacks(app: Dash):
         except Exception as e:
             # Return error message if calculation fails
             error_message = f"Error calculating costs and emissions: {str(e)}"
-            return error_message, html.Div(), {}, {}
+            return error_message, html.Div(), {}, {}, []
 
     # Callback for reset button
     @app.callback(
