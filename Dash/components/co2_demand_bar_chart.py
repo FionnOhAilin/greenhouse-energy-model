@@ -1,17 +1,22 @@
+import os
+import sys
 import plotly.graph_objects as go
 from dash import Dash, dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 from . import ids
 
-# Import calculation functions
-import sys
-sys.path.append(r"C:\Users\phoen\OneDrive - National University of Ireland, Galway\Masters\Thesis\Python Framework")
-from Lib.InputCalculations import calculate_inputs
-from Lib.HTCoefficients import calculate_htc
-from Lib.HeatDemand import calculate_heatdemand
-from Lib.LightDemand import calculate_lightdemand
-from Lib.CO2Demand import calculate_co2demand
+# Add the Lib folder (three levels up from this file: components -> Dash -> Lib)
+# to Python's search path, so we can import Lib modules directly.
+LIB_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+from InputCalculations import calculate_inputs
+from HTCoefficients import calculate_htc
+from HeatDemand import calculate_heatdemand
+from LightDemand import calculate_lightdemand
+from CO2Demand import calculate_co2demand
 
 def render(app: Dash) -> html.Div:
     @app.callback(
