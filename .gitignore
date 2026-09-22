@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+venv/
+.venv/
+climateDF.json
+climateDF.csv
+climateTEST.csv
+climateSR_test.csv
+cropDF.json
+heat_demand.json
+light_demand.json
+co2_demand.json
+optimisation_results.json
+optimisation_minima_*.csv
+optimisation_evaluations_*.csv
+Other Versions and Reference Files/
