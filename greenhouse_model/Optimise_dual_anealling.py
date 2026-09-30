@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import dual_annealing
 from joblib import load
-import EnergyDemand
-import Cost
+from greenhouse_model import EnergyDemand
+from greenhouse_model import Cost
 import time
 from datetime import timedelta, datetime
 
