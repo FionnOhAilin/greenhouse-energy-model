@@ -16,8 +16,8 @@ LIB_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file
 if LIB_DIR not in sys.path:
     sys.path.insert(0, LIB_DIR)
 
-import Cost
-import EnergyDemand
+from greenhouse_model import Cost
+from greenhouse_model import EnergyDemand
 
 
 def load_optimisation_data():
@@ -48,11 +48,11 @@ def get_demand_data():
     try:
         # Import the demand calculation functions (kept for reference; not
         # currently invoked below - the JSON files are read directly instead)
-        from InputCalculations import calculate_inputs
-        from HTCoefficients import calculate_htc
-        from HeatDemand import calculate_heatdemand
-        from LightDemand import calculate_lightdemand
-        from CO2Demand import calculate_co2demand
+        from greenhouse_model.InputCalculations import calculate_inputs
+        from greenhouse_model.HTCoefficients import calculate_htc
+        from greenhouse_model.HeatDemand import calculate_heatdemand
+        from greenhouse_model.LightDemand import calculate_lightdemand
+        from greenhouse_model.CO2Demand import calculate_co2demand
 
         # Calculate demand data directly
         # inputs_data = calculate_inputs()
