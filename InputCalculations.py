@@ -15,7 +15,7 @@ def calculate_inputs():
         completely empty."""
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        full_path = os.path.join(base_dir, r"Lib\\CSV Inputs", os.path.basename(file_name))
+        full_path = os.path.join(base_dir, r"CSV Inputs", os.path.basename(file_name))
 
         x = pd.read_csv(full_path, index_col=0, skip_blank_lines=True)
         return x.dropna(how="all")
@@ -24,7 +24,7 @@ def calculate_inputs():
         """Read the weather file from Met Eireann"""
 
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        full_path = os.path.join(base_dir, r"Lib\\CSV Inputs", os.path.basename(file_name))
+        full_path = os.path.join(base_dir, r"CSV Inputs", os.path.basename(file_name))
 
         x = pd.read_csv(full_path, index_col=False, skip_blank_lines=True, skiprows=23, engine='python')
         return x.dropna(how="all")
@@ -34,7 +34,7 @@ def calculate_inputs():
 
         # Get the base directory (Lib folder)
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        full_path = os.path.join(base_dir, r"Lib\\CSV Inputs", os.path.basename(file_name))
+        full_path = os.path.join(base_dir, r"CSV Inputs", os.path.basename(file_name))
 
         x = pd.read_csv(full_path, index_col=False, skipfooter=12, skiprows=8, engine='python')
         return x.dropna(how="all")
