@@ -1,5 +1,5 @@
 import pandas as pd
-import EnergyDemand
+from greenhouse_model import EnergyDemand
 
 
 class Source:

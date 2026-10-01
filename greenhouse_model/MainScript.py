@@ -6,7 +6,7 @@ from greenhouse_model.HeatDemand import calculate_heatdemand
 from greenhouse_model.LightDemand import calculate_lightdemand
 from greenhouse_model.CO2Demand import calculate_co2demand
 from greenhouse_model.Optimise_dual_anealling import OptimiseEnergySources
-import greenhouse_model.Cost
+from greenhouse_model import Cost
 
 
 def run_demand_calculations():
