@@ -1,0 +1,136 @@
+{
+    "capacities": {
+        "CHP": 0.0,
+        "Geothermal": 0.0,
+        "GSHP": 0.0,
+        "Solar": 0.0,
+        "WasteHeat": 0.22273762609796705,
+        "Grid": 0.0792,
+        "Boiler": 0.0,
+        "CO2": 30.22739368425427
+    },
+    "max_capacities": {
+        "CHP": 0.13718277633848303,
+        "Geothermal": 0.20714599227110936,
+        "GSHP": 0.20714599227110936,
+        "Solar": 0.6236220472440945,
+        "WasteHeat": 0.22273762609796705,
+        "Grid": 0.0792,
+        "Boiler": 0.20714599227110939,
+        "CO2": 30.22739368425427
+    },
+    "enabled_sources": {
+        "CHP": true,
+        "Geothermal": true,
+        "GSHP": true,
+        "Solar": true,
+        "WasteHeat": true,
+        "Grid": true,
+        "Boiler": true,
+        "CO2": true
+    },
+    "total_cost": 101677.84380083656,
+    "cost_components": {
+        "CHP": {
+            "capex": 8105.057210204138,
+            "opex": 623.2996736659198,
+            "fuel": 18134.037455939608,
+            "co2_tax": 2073.8415310322052
+        },
+        "Geothermal": {
+            "capex": 2301.4242306274555,
+            "opex": 3.59695299146362,
+            "fuel": 26.709858021548577,
+            "co2_tax": 0.0
+        },
+        "GSHP": {
+            "capex": 26765.42967325907,
+            "opex": 1657.167938168875,
+            "fuel": 26588.919122355645,
+            "co2_tax": 0.0
+        },
+        "Solar": {
+            "capex": 62367.901836707446,
+            "opex": 7483.464566929134,
+            "fuel": 0,
+            "co2_tax": 0.0
+        },
+        "WasteHeat": {
+            "capex": 0.0,
+            "opex": 0.0,
+            "fuel": 35573.59807626049,
+            "co2_tax": 0.0
+        },
+        "Grid": {
+            "capex": 0.0,
+            "opex": 0.0,
+            "fuel": 54142.36344,
+            "co2_tax": 0.0
+        },
+        "Boiler": {
+            "capex": 783.4595875229257,
+            "opex": 264.6337617128131,
+            "fuel": 23626.41213559575,
+            "co2_tax": 2701.959496616855
+        },
+        "CO2": {
+            "capex": 0.0,
+            "opex": 0.0,
+            "fuel": 328.06824761657697,
+            "co2_tax": 0.0
+        }
+    },
+    "optimised_cost_components": {
+        "CHP": {
+            "capex": 0,
+            "opex": 0,
+            "fuel": 0,
+            "total": 0
+        },
+        "Geothermal": {
+            "capex": 0,
+            "opex": 0,
+            "fuel": 0,
+            "total": 0
+        },
+        "GSHP": {
+            "capex": 0,
+            "opex": 0,
+            "fuel": 0,
+            "total": 0
+        },
+        "Solar": {
+            "capex": 0,
+            "opex": 0,
+            "fuel": 0,
+            "total": 0
+        },
+        "WasteHeat": {
+            "capex": 0.0,
+            "opex": 0.0,
+            "fuel": 35573.59807626049,
+            "co2_tax": 0.0,
+            "total": 35573.59807626049
+        },
+        "Grid": {
+            "capex": 0.0,
+            "opex": 0.0,
+            "fuel": 54142.36344,
+            "co2_tax": 0.0,
+            "total": 54142.36344
+        },
+        "Boiler": {
+            "capex": 0,
+            "opex": 0,
+            "fuel": 0,
+            "total": 0
+        },
+        "CO2": {
+            "capex": 0.0,
+            "opex": 0.0,
+            "fuel": 328.06824761657697,
+            "co2_tax": 0.0,
+            "total": 328.06824761657697
+        }
+    }
+}

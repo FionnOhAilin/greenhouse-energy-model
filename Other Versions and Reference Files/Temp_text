@@ -1,0 +1,566 @@
+import numpy as np
+from scipy.optimize import dual_annealing
+from joblib import load
+import EnergyDemand
+import Cost
+import time
+from datetime import timedelta
+
+
+class OptimizeEnergySources:
+    def __init__(self, heat_demand, light_demand, co2_demand):
+        self.heat_demand = heat_demand
+        self.light_demand = light_demand
+        self.co2_demand = co2_demand
+
+        # Store demand calculations and max powers
+        self.chp = EnergyDemand.CHP(heat_demand, light_demand, co2_demand)
+        self.chp_demand, self.chp_max_power = self.chp.calculate_demand()
+
+        self.geo = EnergyDemand.Geothermal(heat_demand, light_demand, co2_demand)
+        self.geo_demand, self.geo_max_power = self.geo.calculate_demand()
+
+        self.gshp = EnergyDemand.GSHP(heat_demand, light_demand, co2_demand)
+        self.gshp_demand, self.gshp_max_power = self.gshp.calculate_demand()
+
+        self.solar = EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand)
+        self.solar_demand, self.solar_max_power = self.solar.calculate_demand()
+
+        self.wasteheat = EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand)
+        self.wasteheat_demand, self.wasteheat_max_power = self.wasteheat.calculate_demand()
+
+        self.grid = EnergyDemand.Grid(heat_demand, light_demand, co2_demand)
+        self.grid_demand, self.grid_max_power = self.grid.calculate_demand()
+
+        self.boiler = EnergyDemand.Boiler(heat_demand, light_demand, co2_demand)
+        self.boiler_demand, self.boiler_max_power = self.boiler.calculate_demand()
+
+        self.co2 = EnergyDemand.CO2Import(heat_demand, light_demand, co2_demand)
+        self.co2_demand, self.co2_max_power = self.co2.calculate_demand()
+
+        # Store maximum demands
+        self.max_heat = heat_demand["QnetMWh"].max()
+        self.max_light = light_demand["MWh"].max()
+        self.max_co2 = co2_demand["Total CO2 Demand"].max()
+
+        # Add storage for optimization tracking
+        self.optimization_data = {
+            'costs': [],
+            'iterations': [],
+            'solutions': [],
+            'best_x': None,
+            'best_f': float('inf')
+        }
+
+        print(f"\nMaximum demands:")
+        print(f"Heat: {self.max_heat:.4f} MW")
+        print(f"Light: {self.max_light:.4f} MW")
+        print(f"CO2: {self.max_co2:.4f} kg/h")
+
+        print(f"\nMaximum technology powers:")
+        print(f"CHP: {self.chp_max_power:.4f} MW")
+        print(f"Geothermal: {self.geo_max_power:.4f} MW")
+        print(f"GSHP: {self.gshp_max_power:.4f} MW")
+        print(f"Solar: {self.solar_max_power:.4f} MW")
+        print(f"Waste Heat: {self.wasteheat_max_power:.4f} MW")
+        print(f"Grid: {self.grid_max_power:.4f} MW")
+        print(f"Boiler: {self.boiler_max_power:.4f} MW")
+        print(f"CO2: {self.co2_max_power:.4f} kg/h")
+
+    def calculate_supplies(self, x):
+        """Calculate supply of heat, light, and CO2 from given capacities"""
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+
+        # Calculate heat supply
+        heat_supply = (
+                chp * self.chp.heat_to_electric_ratio +  # These need to be double checked <<<<<<<<<<
+                geo +
+                gshp +
+                waste +
+                boiler
+        )
+
+        # Calculate light supply
+        light_supply = (
+                chp * (1 - self.chp.cc_power) +
+                solar * self.solar.capacity_factor +
+                grid
+        )
+
+        # Calculate CO2 capture
+        co2_supply = (
+                chp / self.chp.fuel_to_electric_efficiency * self.chp.gas_co2_per_Mwh * self.chp.cc_efficiency +
+                boiler * self.boiler.gas_co2_per_Mwh * self.boiler.fuel_to_heat_efficiency +
+                co2
+        )
+
+        return heat_supply, light_supply, co2_supply
+
+    def calculate_total_cost(self, x):
+        """Calculate total annual cost for all technologies"""
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+        total_cost = 0
+
+        try:
+            # CHP costs
+            if chp > 0:
+                chp_cost = Cost.CHP(
+                    capital_cost=900000,
+                    base_capex=0,
+                    operational_cost=11,
+                    fuel_cost=90.1,
+                    power=chp,
+                    energy_output=self.chp_demand["Yearly Electricity Output"].sum() * (chp / self.chp_max_power),
+                    fuel_requirement=self.chp_demand["Fuel Requirement"].sum() * (chp / self.chp_max_power),
+                    cc_power=0.16,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = chp_cost.constant_cost()
+                total_cost += annual_cost
+
+            # Geothermal costs
+            if geo > 0:
+                geo_cost = Cost.Geothermal(
+                    capital_cost=2890000,
+                    base_capex=0,
+                    operational_cost=11000 * self.geo_max_power /
+                                     (self.geo_demand["Yearly Heat Output"].sum() * (geo / self.geo_max_power)),
+                    fuel_cost=228.1,
+                    power=geo,
+                    energy_output=self.geo_demand["Yearly Heat Output"].sum() * (geo / self.geo_max_power),
+                    fuel_requirement=self.geo_demand["Electricity for Heat"].sum() * (geo / self.geo_max_power),
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = geo_cost.constant_cost()
+                total_cost += annual_cost
+
+            # GSHP costs
+            if gshp > 0:
+                gshp_cost = Cost.GSHP(
+                    capital_cost=1297000,
+                    base_capex=0,
+                    operational_cost=8000 * self.gshp_max_power /
+                                     (self.gshp_demand["Yearly Heat Output"].sum() * (gshp / self.gshp_max_power)),
+                    fuel_cost=228.1,
+                    power=gshp,
+                    energy_output=self.gshp_demand["Yearly Heat Output"].sum() * (gshp / self.gshp_max_power),
+                    fuel_requirement=self.gshp_demand["Electricity for Heat"].sum() * (gshp / self.gshp_max_power),
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = gshp_cost.constant_cost()
+                total_cost += annual_cost
+
+            # Solar costs
+            if solar > 0:
+                solar_cost = Cost.SolarPV(
+                    capital_cost=1780000,
+                    base_capex=0,
+                    operational_cost=26450 * self.solar_max_power /
+                                     (self.solar_demand["Yearly Electricity Output"].sum() *
+                                      (solar / self.solar_max_power)),
+                    fuel_cost=0,
+                    power=solar,
+                    energy_output=self.solar_demand["Yearly Electricity Output"].sum() * (solar / self.solar_max_power),
+                    fuel_requirement=0,
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = solar_cost.constant_cost()
+                total_cost += annual_cost
+
+            # Waste Heat costs
+            if waste > 0:
+                waste_cost = Cost.WasteHeat(
+                    capital_cost=0,
+                    base_capex=0,
+                    operational_cost=0,
+                    fuel_cost=100,
+                    power=waste,
+                    energy_output=self.wasteheat_demand["Yearly Heat Output"].sum() * (
+                            waste / self.wasteheat_max_power),
+                    fuel_requirement=self.wasteheat_demand["Steam Required"].sum() * (waste / self.wasteheat_max_power),
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = waste_cost.constant_cost()
+                total_cost += annual_cost
+
+            # Grid costs
+            if grid > 0:
+                grid_cost = Cost.Grid(
+                    capital_cost=0,
+                    base_capex=0,
+                    operational_cost=0,
+                    fuel_cost=228.1,
+                    power=grid,
+                    energy_output=self.grid_demand["Yearly Electricity Output"].sum() * (grid / self.grid_max_power),
+                    fuel_requirement=self.grid_demand["Electricity for Light"].sum() * (grid / self.grid_max_power),
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = grid_cost.constant_cost()
+                total_cost += annual_cost
+
+            if boiler > 0:
+                boiler_cost = Cost.Boiler(
+                    capital_cost=130000,
+                    base_capex=0,
+                    operational_cost=3900 * self.boiler_max_power /
+                                     (self.boiler_demand["Yearly Heat Output"].sum() * (
+                                             boiler / self.boiler_max_power)),
+                    fuel_cost=0.27,
+                    power=boiler,
+                    energy_output=self.boiler_demand["Yearly Heat Output"].sum() * (boiler / self.boiler_max_power),
+                    fuel_requirement=self.boiler_demand["Fuel Requirement"].sum() * (boiler / self.boiler_max_power),
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = boiler_cost.constant_cost()
+                total_cost += annual_cost
+
+            if co2 > 0:
+                co2_cost = Cost.CO2Import(
+                    capital_cost=0,
+                    base_capex=0,
+                    operational_cost=0,
+                    fuel_cost=0.14678,
+                    power=co2,
+                    energy_output=0,
+                    fuel_requirement=self.co2_demand["CO2 Requirement"].sum() * (co2 / self.co2_max_power),
+                    cc_power=0,
+                    lifetime=20,
+                    loan_term=20
+                )
+                _, _, _, annual_cost, _ = co2_cost.constant_cost()
+                total_cost += annual_cost
+
+            return total_cost
+        except Exception as e:
+            print(f"Error in calculate_total_cost: {e}")
+            return 1e10  # Return high cost instead of None
+
+    def objective(self, x):
+        """Objective function with cost breakdown tracking"""
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+        try:
+            heat_supply, light_supply, co2_supply = self.calculate_supplies(x)
+            base_cost = self.calculate_total_cost(x)
+
+            # Calculate violations
+            heat_undersupply = max(0, self.max_heat - heat_supply)
+            light_undersupply = max(0, self.max_light - light_supply)
+            co2_undersupply = max(0, self.max_co2 - co2_supply)
+
+            # Calculate undersupply penalties
+            heat_undersupply_penalty = 1e12 * heat_undersupply ** 2
+            light_undersupply_penalty = 1e12 * light_undersupply ** 2
+            co2_undersupply_penalty = 1e10 * co2_undersupply ** 2
+            undersupply_penalty = heat_undersupply_penalty + light_undersupply_penalty + co2_undersupply_penalty
+
+            tolerance = 0.05
+            heat_oversupply = max(0, heat_supply - self.max_heat * (1 + tolerance))
+            light_oversupply = max(0, light_supply - self.max_light * (1 + tolerance))
+            co2_oversupply = (
+                    self.chp_demand["Fuel Requirement"].sum() * self.chp.gas_co2_per_Mwh * self.chp.cc_efficiency * (
+                        chp / self.chp_max_power) +
+                    self.boiler_demand[
+                        "Fuel Requirement"].sum() * self.boiler.gas_co2_per_Mwh * self.boiler.cc_efficiency * (
+                                boiler / self.boiler_max_power) +
+                    self.co2_demand["CO2 Requirement"].sum() * (co2 / self.co2_max_power) -
+                    self.co2_demand["CO2 Requirement"].sum()
+            )
+
+            # Calculate oversupply penalties
+            co2_oversupply_penalty = co2_oversupply * 0.056  # £56 per tonne of CO2
+            oversupply_penalty = co2_oversupply_penalty
+
+            total_cost = base_cost + undersupply_penalty + oversupply_penalty
+
+            # Store cost breakdown for this iteration
+            self.current_cost_breakdown = {
+                'base_cost': base_cost,
+                'undersupply_penalty': undersupply_penalty,
+                'oversupply_penalty': oversupply_penalty,
+                'total_cost': total_cost,
+                'undersupply_breakdown': {
+                    'heat': heat_undersupply_penalty,
+                    'light': light_undersupply_penalty,
+                    'co2': co2_undersupply_penalty
+                },
+                'oversupply_breakdown': {
+                    'co2': co2_oversupply_penalty
+                }
+            }
+
+            # Detailed debugging output
+            if undersupply_penalty > 0 or oversupply_penalty > 1000:
+                print(f"\nCost Breakdown at CHP = {x[0]:.4f} MW:"
+                      f"\nGeothermal = {x[1]:.4f} MW "
+                      f"\nGSHP = {x[2]:.4f} MW "
+                      f"\nSolar = {x[3]:.4f} MW"
+                      f"\nWaste Heat = {x[4]:.4f} MW"
+                      f"\nGrid = {x[5]:.4f} MW"
+                      f"\nBoiler = {x[6]:.4f} MW"
+                      f"\nCO2 = {x[7]:.4f} kg/h")
+                print(f"Base Cost: £{base_cost:,.2f}")
+                print(f"Undersupply Penalty: £{undersupply_penalty:,.2f}")
+                print(f"  Heat: £{heat_undersupply_penalty:,.2f}")
+                print(f"  Light: £{light_undersupply_penalty:,.2f}")
+                print(f"  CO2: £{co2_undersupply_penalty:,.2f}")
+                print(f"Oversupply Penalty: £{oversupply_penalty:,.2f}")
+                print(f"  CO2: £{co2_oversupply_penalty:,.2f}")
+                print(f"Total Cost: £{total_cost:,.2f}")
+
+            return float(total_cost)
+
+        except Exception as e:
+            print(f"Error in objective function: {e}")
+            return 1e10
+
+    def callback(self, x, f, context):
+        """Callback function to check convergence and store iteration data"""
+        iteration = len(self.optimization_data['costs'])
+        self.optimization_data['costs'].append(float(f))  # Convert to native Python float
+        self.optimization_data['iterations'].append(iteration)
+        self.optimization_data['solutions'].append({
+            'iteration': iteration,
+            'cost': float(f),
+            'chp': float(x[0]),  # Convert NumPy values to native Python floats
+            'geo': float(x[1]),
+            'gshp': float(x[2]),
+            'solar': float(x[3]),
+            'waste': float(x[4]),
+            'grid': float(x[5]),
+            'boiler': float(x[6]),
+            'co2': float(x[7])
+        })
+
+        # Store current best solution
+        if iteration == 0 or f < self.optimization_data['best_f']:
+            self.optimization_data['best_x'] = [float(val) for val in x]  # Convert array to list of floats
+            self.optimization_data['best_f'] = float(f)
+
+        # Check for convergence after some initial iterations
+        if iteration > 10:
+            recent_min = min(self.optimization_data['costs'][-10:])
+            old_min = min(self.optimization_data['costs'][:-10])
+            improvement = (old_min - recent_min) / old_min * 100
+
+            if improvement < 1:
+                print(f"\nConverged after {iteration} iterations")
+                print(f"Cost improvement in last 10 iterations: {improvement:.2f}%")
+                # Print current solution details
+                print(f"\nCurrent solution at convergence:")
+                print(f"CHP: {x[0]:.4f} MW")
+                print(f"Geothermal: {x[1]:.4f} MW")
+                print(f"GSHP: {x[2]:.4f} MW")
+                print(f"Solar: {x[3]:.4f} MW")
+                print(f"Waste Heat: {x[4]:.4f} MW")
+                print(f"Grid: {x[5]:.4f} MW")
+                print(f"Boiler: {x[6]:.4f} MW")
+                print(f"CO2: {x[7]:.4f} kg/h")
+                print(f"Cost: £{f:,.2f}")
+                return True
+
+        # Print progress every 10 iterations
+        if iteration % 10 == 0:
+            print(f"Iteration {iteration}: Best cost = £{min(self.optimization_data['costs']):,.2f}")
+
+        return False
+
+    def optimize(self):
+        """Run optimization using dual annealing with convergence tracking"""
+        print("\nStarting dual annealing optimization...")
+
+        bounds = [
+            (0, self.chp_max_power),
+            (0, self.geo_max_power),
+            (0, self.gshp_max_power),
+            (0, self.solar_max_power),
+            (0, self.wasteheat_max_power),
+            (0, self.grid_max_power),
+            (0, self.boiler_max_power),
+            (0, self.co2_max_power)
+        ]
+
+        results = []
+        all_optimization_data = []
+
+        initial_points = [
+            [self.chp_max_power, 0, 0, 0, 0, 0, 0, 0],
+            [self.chp_max_power * 0.8, 0, 0, self.solar_max_power * 0.2, 0, 0, 0, 0],
+            [self.chp_max_power * 0.7, self.geo_max_power * 0.3, 0, 0, 0, 0, 0, 0]
+        ]
+
+        for i, x0 in enumerate(initial_points):
+            print(f"\nStarting optimization run {i + 1} with initial CHP power: {x0[0]:.2f} MW")
+
+            # Reset optimization data for new run
+            self.optimization_data = {
+                'costs': [],
+                'iterations': [],
+                'solutions': [],
+                'best_x': None,
+                'best_f': float('inf'),
+                'run_number': i + 1
+            }
+
+            result = dual_annealing(
+                self.objective,
+                bounds=bounds,
+                x0=x0,
+                initial_temp=500.0,
+                maxiter=200,
+                visit=2.0,
+                accept=-5.0,
+                no_local_search=True,
+                seed=42 + i,
+                callback=self.callback
+            )
+
+            # Convert NumPy arrays to lists before saving
+            json_data = {
+                'costs': [float(x) for x in self.optimization_data['costs']],
+                'iterations': self.optimization_data['iterations'],
+                'solutions': self.optimization_data['solutions'],
+                'best_x': [float(x) if x is not None else None for x in (self.optimization_data['best_x'] or [])],
+                'best_f': float(self.optimization_data['best_f']) if self.optimization_data['best_f'] != float(
+                    'inf') else None,
+                'run_number': self.optimization_data['run_number']
+            }
+
+            # Save optimization data for this run
+            import json
+            with open(f'convergence_data_run_{i + 1}.json', 'w') as f:
+                json.dump(json_data, f)
+
+            if self.optimization_data['best_f'] < result.fun:
+                result.x = np.array(self.optimization_data['best_x'])
+                result.fun = self.optimization_data['best_f']
+
+            results.append(result)
+            all_optimization_data.append(self.optimization_data)
+
+            print(f"Run {i + 1} final cost: £{result.fun:,.2f}")
+
+        best_result = min(results, key=lambda r: r.fun)
+        return best_result, all_optimization_data
+
+
+def main():
+    # Start timing
+    start_time = time.time()
+
+    print("Loading demand data...")
+    heat_demand = load("heat_demand.joblib")
+    light_demand = load("light_demand.joblib")
+    co2_demand = load("co2_demand.joblib")
+
+    # Time for data loading
+    data_load_time = time.time()
+    print(f"Data loading time: {timedelta(seconds=data_load_time - start_time)}")
+
+    # Initialize optimizer
+    optimizer = OptimizeEnergySources(heat_demand, light_demand, co2_demand)
+
+    # Time for initialization
+    init_time = time.time()
+    print(f"Initialization time: {timedelta(seconds=init_time - data_load_time)}")
+
+    # Run optimization
+    print("\nStarting optimization...")
+    opt_start_time = time.time()
+    result, contexts = optimizer.optimize()  # Now receives two returns
+    opt_end_time = time.time()
+
+    # Calculate optimization time
+    opt_duration = opt_end_time - opt_start_time
+    print(f"\nOptimization time: {timedelta(seconds=opt_duration)}")
+
+    def main():
+        # ... (previous code remains the same until convergence statistics) ...
+
+        if result.success:
+            print("\nOptimization successful!")
+            print("\nOptimal capacities (MW):")
+            technologies = ['CHP', 'Geothermal', 'GSHP', 'Solar PV', 'Waste Heat', 'Grid', 'Boiler', 'CO2 Import']
+            for tech, capacity in zip(technologies, result.x):
+                print(f"{tech}: {capacity:.4f}")
+
+            print(f"\nMinimum annual cost: £{result.fun:,.2f}")
+
+            # Print convergence statistics for each run
+            print("\nConvergence Statistics:")
+            for i, context in enumerate(contexts):
+                print(f"\nRun {i + 1}:")
+                print(f"Total iterations: {len(context['costs'])}")
+                print(f"Best cost: £{context['best_f']:,.2f}")
+                if len(context['costs']) < 200 and len(context['costs']) > 0:  # Check if we have any costs
+                    initial_cost = context['costs'][0]
+                    final_cost = context['best_f']
+                    if initial_cost > 0:  # Avoid division by zero
+                        final_improvement = (initial_cost - final_cost) / initial_cost * 100
+                        print(f"Total improvement achieved: {final_improvement:.2f}%")
+                    else:
+                        print("Could not calculate improvement (initial cost was zero or negative)")
+                elif len(context['costs']) == 0:
+                    print("No cost data available for this run")
+
+        # Print convergence statistics for each run
+        print("\nConvergence Statistics:")
+        for i, context in enumerate(contexts):
+            print(f"\nRun {i+1}:")
+            print(f"Total iterations: {len(context['costs'])}")
+            print(f"Best cost: £{context['best_f']:,.2f}")
+            if len(context['costs']) < 200:  # If stopped early
+                final_improvement = (context['costs'][0] - context['best_f']) / context['costs'][0] * 100
+                print(f"Total improvement achieved: {final_improvement:.2f}%")
+        # Verify constraints are met
+        heat_supply, light_supply, co2_supply = optimizer.calculate_supplies(result.x)
+
+        print("\nConstraint Verification:")
+        print(f"Heat Supply:")
+        print(f"Required: {optimizer.max_heat:.4f} MW")
+        print(f"Supplied: {heat_supply:.4f} MW")
+
+        print(f"\nLight Supply:")
+        print(f"Required: {optimizer.max_light:.4f} MW")
+        print(f"Supplied: {light_supply:.4f} MW")
+
+        print(f"\nCO2 Supply:")
+        print(f"Required: {optimizer.max_co2:.4f} kg/h")
+        print(f"Supplied: {co2_supply:.4f} kg/h")
+
+        # Print optimization statistics
+        print("\nOptimization Statistics:")
+        print(f"Number of iterations: {result.nit}")
+        print(f"Number of function evaluations: {result.nfev}")
+        print(f"Average time per iteration: {timedelta(seconds=opt_duration / result.nit)}")
+
+        # Get final cost breakdown
+        optimizer.objective(result.x)  # This will update the cost breakdown
+        cost_breakdown = optimizer.current_cost_breakdown
+
+        print("\nFinal Cost Breakdown:")
+        print(f"Base Cost: £{cost_breakdown['base_cost']:,.2f}")
+        print("\nUndersupply Penalties:")
+        print(f"  Heat: £{cost_breakdown['undersupply_breakdown']['heat']:,.2f}")
+        print(f"  Light: £{cost_breakdown['undersupply_breakdown']['light']:,.2f}")
+        print(f"  CO2: £{cost_breakdown['undersupply_breakdown']['co2']:,.2f}")
+        print(f"Total Undersupply Penalty: £{cost_breakdown['undersupply_penalty']:,.2f}")
+        print("\nOversupply Penalties:")
+        print(f"  CO2: £{cost_breakdown['oversupply_breakdown']['co2']:,.2f}")
+        print(f"\nTotal Cost: £{cost_breakdown['total_cost']:,.2f}")
+
+
+if __name__ == "__main__":
+    main()
