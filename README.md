@@ -3,20 +3,36 @@
 An Irish techno-economic tool for the optimisation of greenhouse energy modelling with a GUI for prospective greenhouse operators. Allows the operator to analyse different energy system technologies under accurate Irish climate and economic conditions.
 
 ## Installation
+### Requirments
+- Python 3.9 or higher
+- Git
+
+### Steps
 ```bash
-python -m venv venv
+git clone https://github.com/FionnOhAilin/greenhouse-energy-model.git
+cd greenhouse-energy-model
+```
+
+2. Create and activate a virtual environment:
+```bash
+python3 -m venv venv
 source venv/bin/activate
+```
+
+3. Install the package:
+```bash
 pip install -e .
-python -m greenhouse_model.MainScript
 ```
 ## Getting started
 
-1. Ensure you have climate and solar radiation data in `CSV Inputs/` folder (see MainScript prompts for data sources)
-2. Run the main optimisation:
+Before running, ensure you have climate and solar radiation data in the `CSV Inputs/` folder (the script will prompt you for data sources).
+
+**Run the main optimisation:**
 ```bash
 python -m greenhouse_model.MainScript
 ```
-3. For the interactive dashboard:
+
+**Or run the interactive dashboard:**
 ```bash
 python Dash/interactive_capacity_explorer.py
 ```
