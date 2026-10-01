@@ -6,6 +6,7 @@ Author-email: Fionn Ó hAilín <fionnohailin@gmail.com>
 Requires-Python: >=3.9
 License-File: LICENSE
 Requires-Dist: pandas<3.0,>=2.0
+Requires-Dist: matplotlib>=3.5
 Requires-Dist: numpy>=1.20
 Requires-Dist: scipy>=1.7
 Requires-Dist: plotly>=5.0
