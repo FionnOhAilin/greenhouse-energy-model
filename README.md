@@ -1,5 +1,6 @@
 # Greenhouse energy model
-Decription
+
+An Irish techno-economic tool for the optimisation of greenhouse energy modelling with a GUI for prospective greenhouse operators. Allows the operator to analyse different energy system technologies under accurate Irish climate and economic conditions.
 
 ## Installation
 ```
