@@ -8,6 +8,7 @@ An Irish techno-economic tool for the optimisation of greenhouse energy modellin
 - Git
 
 ### Steps
+1: Clone the repository:
 ```bash
 git clone https://github.com/FionnOhAilin/greenhouse-energy-model.git
 cd greenhouse-energy-model
