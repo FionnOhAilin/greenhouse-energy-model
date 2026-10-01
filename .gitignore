@@ -17,3 +17,4 @@ optimisation_evaluations_*.csv
 Other Versions and Reference Files/*.egg-info/
 optimisation_minima_*.csv
 optimisation_results.json
+optimisation_evaluations_*.csv
