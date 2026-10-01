@@ -1,3 +1,5 @@
+LICENSE
+README.md
 pyproject.toml
 greenhouse_energy_model.egg-info/PKG-INFO
 greenhouse_energy_model.egg-info/SOURCES.txt
