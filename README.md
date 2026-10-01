@@ -4,7 +4,10 @@ An Irish techno-economic tool for the optimisation of greenhouse energy modellin
 
 ## Installation
 ```bash
-pip install -e
+python -m venv venv
+source venv/bin/activate
+pip install -e .
+python -m greenhouse_model.MainScript
 ```
 ## Getting started
 
