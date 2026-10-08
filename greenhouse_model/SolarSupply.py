@@ -6,6 +6,9 @@ class SolarSupply:
     Solar PV Supply - calculates hourly electricity output based on climate data.
     """
 
+    embodied_emissions = 50 #kgCO2/kW installed capacity as a placeholder figure
+    system_lifetime = 30 #years
+
     def __init__(self, climate_data, surface="Solar Radiation (South Roof)"):
         """
         Initialise with hourly climate data from PVGIS
@@ -37,6 +40,11 @@ class SolarSupply:
         #Convert to energy: MWh = kW / 1000 
         df["Electricity Output (MWh)"] = hourly_power_kw / 1000
 
+        #Embodied CO2 amortised over system lifetime
+        hours_in_lifetime = 8760 * self.system_lifetime
+        hourly_embodied_kg = (self.embodied_emissions * capacity_kw ) / hours_in_lifetime
+        df["Embodied CO2 Emissions (kg)"] = hourly_embodied_kg
+
         #Yearly total
         yearly_mwh = df["Electricity Output (MWh)"].sum()
         df["Yearly Total (MWh)"] = yearly_mwh
@@ -62,3 +70,4 @@ if __name__ == "__main__":
     print(f"50 kW North Roof: {annual_north:.2f} MWh/year")
     print(f"South Capacity factor: {annual_south / (50 * 8.76):.3f}")
     print(f"North Capacity factor: {annual_north / (50 * 8.76):.3f}")
+    print(f"Hourly embodied CO₂ (50 kW): {(50* 50) / (8760 * 30):.6f} kg/h")
