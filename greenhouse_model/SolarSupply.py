@@ -7,14 +7,15 @@ class SolarSupply:
     """
 
     def __init__(self, climate_data, surface="Solar Radiation (South Roof)"):
-        self.irradiance = climate_data[surface].astype(float)
-        self.time_index = climate_data.index
         """
         Initialise with hourly climate data from PVGIS
-
+       
         climate_data: DataFrame with hourly solar radiation coloumn
         surface: coloumn name for irradiance data (W/m^2)
         """
+        self.irradiance = climate_data[surface].astype(float)
+        self.time_index = climate_data.index
+       
     def calculate_supply(self, capacity_kw):
         """
         Calculate hourly PV electricity output.
@@ -48,9 +49,16 @@ if __name__ == "__main__":
     climate = inputs["climate"]
 
     #Test 50 kW south roof
-    solar = SolarSupply(climate)
-    supply = solar.calculate_supply(capacity_kw=50)
+    solar_south = SolarSupply(climate)
+    supply_south= solar_south.calculate_supply(capacity_kw=50)
+    annual_south= supply_south["Yearly Total (MWh)"].iloc[0]
 
-    annual = supply["Yearly Total (MWh)"].iloc[0]
-    print(f"50 kW South Roof: {annual:.2f} MWh/year")
-    print(f"Capacity factor: {annual / (50 * 8.76):.3f}")
+    solar_north = SolarSupply(climate, surface="Solar Radiation (North Roof)")
+    supply_north= solar_north.calculate_supply(capacity_kw=50)
+    annual_north= supply_north["Yearly Total (MWh)"].iloc[0]
+
+    
+    print(f"50 kW South Roof: {annual_south:.2f} MWh/year")
+    print(f"50 kW North Roof: {annual_north:.2f} MWh/year")
+    print(f"South Capacity factor: {annual_south / (50 * 8.76):.3f}")
+    print(f"North Capacity factor: {annual_north / (50 * 8.76):.3f}")
