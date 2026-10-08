@@ -1,19 +1,56 @@
 import pandas as pd
-import numpy as np
 
-def calculate_solar_supply(climate, pv_efficiency=0.22, pv_area=1000):
+
+class SolarSupply:
     """
-    Calculate the solar energy supply based on climate data.
-
-    Args:
-        climate (DataFrame):  A pandas DataFrame containing climate data with  solar_radiation columns (in W/m²).
-        pv_efficiency (float): The efficiency of the photovoltaic panels (default: 0.22).
-        pv_area (float): The area of the photovoltaic panels (in m²).
-
-    Returns:
-        DataFrame: Hourly electricity output in MWh 
-
+    Solar PV Supply - calculates hourly electricity output based on climate data.
     """
 
-    # TODO: Implement the solar supply calculation based on the provided climate data.
-    pass
+    def __init__(self, climate_data, surface="Solar Radiation (South Roof)"):
+        self.irradiance = climate_data[surface].astype(float)
+        self.time_index = climate_data.index
+        """
+        Initialise with hourly climate data from PVGIS
+
+        climate_data: DataFrame with hourly solar radiation coloumn
+        surface: coloumn name for irradiance data (W/m^2)
+        """
+    def calculate_supply(self, capacity_kw):
+        """
+        Calculate hourly PV electricity output.
+
+        capacity_kw: installed system capacity in kilowatts
+
+        returns DataFrame with:
+        - Electricity Output (MWh): hourly generation
+        - Yearly Total (MWh): annual sum of generation
+        """
+
+        df = pd.DataFrame(index=self.time_index)
+
+        #Calculate hourly power output
+        #Power (kW) = Irradiance (W/m^2) x Capacity (kW) / 1000 W/m^2
+        hourly_power_kw = self.irradiance * capacity_kw / 1000 
+    
+
+        #Convert to energy: MWh = kW / 1000 
+        df["Electricity Output (MWh)"] = hourly_power_kw / 1000
+
+        #Yearly total
+        yearly_mwh = df["Electricity Output (MWh)"].sum()
+        df["Yearly Total (MWh)"] = yearly_mwh
+
+        return df
+
+if __name__ == "__main__":
+    from InputCalculations import calculate_inputs
+    inputs = calculate_inputs()
+    climate = inputs["climate"]
+
+    #Test 50 kW south roof
+    solar = SolarSupply(climate)
+    supply = solar.calculate_supply(capacity_kw=50)
+
+    annual = supply["Yearly Total (MWh)"].iloc[0]
+    print(f"50 kW South Roof: {annual:.2f} MWh/year")
+    print(f"Capacity factor: {annual / (50 * 8.76):.3f}")
