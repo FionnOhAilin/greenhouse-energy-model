@@ -5,6 +5,7 @@ from joblib import load
 from greenhouse_model import EnergyDemand
 from greenhouse_model import Cost
 import time
+from SolarSupply import SolarSupply
 from datetime import timedelta, datetime
 
 
@@ -14,13 +15,14 @@ class OptimiseEnergySources:
     This class uses dual annealing optimisation to find the best combination of energy sources.
     For information on dual annealing see SciPy documentation.
     """
-    def __init__(self, heat_demand, light_demand, co2_demand):
+    def __init__(self, heat_demand, light_demand, co2_demand, climate_data):
         """
-        Intialise the class with the given heat, light, and CO2 demand data.
+        Intialise the class with the given heat, light, CO2 demand and climate data.
         """
         self.heat_demand = heat_demand
         self.light_demand = light_demand
         self.co2_demand = co2_demand
+        self.climate_data = climate_data
 
         # Store demand calculations and max powers for each technology
         self.chp = EnergyDemand.CHP(heat_demand, light_demand, co2_demand)
@@ -36,9 +38,9 @@ class OptimiseEnergySources:
         self.gshp_demand, self.gshp_max_power = self.gshp.calculate_max_supply()
         self.gshp_max_supply = self.gshp.calculate_supply(self.gshp_max_power, self.gshp_max_power)
 
-        self.solar = EnergyDemand.SolarPV(heat_demand, light_demand, co2_demand)
-        self.solar_demand, self.solar_max_power = self.solar.calculate_max_supply()
-        self.solar_max_supply = self.solar.calculate_supply(self.solar_max_power, self.solar_max_power)
+        self.solar_south = SolarSupply(climate_data, surface="Solar Radiation (South Roof)")
+        self.solar_north = SolarSupply(climate_data, surface="Solar Radiation (North Roof)")
+        self.solar_max_power = 1.0 #Upper bound 1MW
 
         self.wasteheat = EnergyDemand.WasteHeat(heat_demand, light_demand, co2_demand)
         self.wasteheat_demand, self.wasteheat_max_power = self.wasteheat.calculate_max_supply()
@@ -109,6 +111,13 @@ class OptimiseEnergySources:
         """Calculate supply of heat, light, and CO2 from given capacities"""
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
 
+        if solar > 0:
+            solar_supply = self.solar_south.calculate_supply(solar) 
+            solar_yearly_mwh = solar_supply["Electricity Output (MWh)"].sum()
+            solar_avg_power = solar_yearly_mwh / 8.76 #Convert MWh/year to average MW
+        else:
+            solar_avg_power = 0
+
         # Calculate heat supply
         heat_supply = (
                 chp * self.chp.heat_to_electric_ratio +
@@ -121,7 +130,7 @@ class OptimiseEnergySources:
         # Calculate light supply
         light_supply = (
                 chp * (1 - self.chp.cc_power) +
-                solar * self.solar.capacity_factor +
+                solar_avg_power +
                 grid
         )
 
@@ -210,20 +219,20 @@ class OptimiseEnergySources:
 
             # Solar costs
             if solar > min_size:
-                solar_instance = EnergyDemand.SolarPV(self.heat_demand, self.light_demand, self.co2_demand)
-                self.solar_supply = solar_instance.calculate_supply(solar, self.solar_max_power)
+                solar_instance = SolarSupply(self.climate_data, surface="Solar Radiation (South Roof)")
+                self.solar_supply = solar_instance.calculate_supply(solar)
                 solar_cost = Cost.SolarPV(
                     capital_cost=1.572e6 * solar ** -0.15 - 1.5e5,
                     base_capex=0,
-                    operational_cost=12000 * solar / self.solar_supply["Yearly Electricity Output"].sum(),
-                    fuel_cost=0,
+                    fuel_cost = 0, 
+                    operational_cost=12000 * solar / self.solar_supply["Electricity Output (MWh)"].sum(),
                     power=solar,
-                    energy_output=self.solar_supply["Yearly Electricity Output"].sum(),
+                    energy_output=self.solar_supply["Electricity Output (MWh)"].sum(),
                     fuel_requirement=0,
                     cc_power=0,
                     lifetime=30,
                     loan_term=20,
-                    co2_emissions=self.solar_supply["Direct CO2 Emissions"].sum()
+                    co2_emissions=self.solar_supply["Embodied CO2 Emissions (kg)"].sum()
                 )
                 capex, opex, fuel, co2_tax, lifetime_cost, _, _ = solar_cost.constant_cost()
                 current_cost_components['Solar'] = {'capex': capex, 'opex': opex, 'fuel': fuel, 'co2_tax': co2_tax}
@@ -318,9 +327,11 @@ class OptimiseEnergySources:
             boiler_costs = current_cost_components['Boiler']
             return total_cost, chp_costs, boiler_costs
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Error in calculate_total_cost: {e}")
             return 1e10  # Return high cost instead of None
-
+        
     def check_convergence(self):
         """Check if optimisation has converged based on improvements between discovered minima"""
         # Only perform check if enough local minima have been discovered
@@ -579,12 +590,17 @@ def main():
     light_demand = pd.read_json("light_demand.json")
     co2_demand = pd.read_json("co2_demand.json")
 
+    print("Loading climate data...")
+    from InputCalculations import calculate_inputs
+    inputs = calculate_inputs()
+    climate_data = inputs["climate"]
+
     # Time for data loading
     data_load_time = time.time()
     print(f"Data loading time: {timedelta(seconds=data_load_time - start_time)}")
 
     # Initialise optimiser
-    optimiser = OptimiseEnergySources(heat_demand, light_demand, co2_demand)
+    optimiser = OptimiseEnergySources(heat_demand, light_demand, co2_demand, climate_data)
 
     # Time for initialisation
     init_time = time.time()
