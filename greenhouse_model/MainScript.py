@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 import json
+import numpy as np
 
 from greenhouse_model.InputCalculations import calculate_inputs
 from greenhouse_model.HTCoefficients import calculate_htc
@@ -26,8 +27,7 @@ def run_demand_calculations():
     light_demand = calculate_lightdemand(inputs_data, htc, heat_demand)
     co2_demand = calculate_co2demand(inputs_data, htc, heat_demand, light_demand)
 
-    return heat_demand, light_demand, co2_demand
-
+    return heat_demand, light_demand, co2_demand, inputs_data["climate"]
 
 def configure_energy_sources():
     """Allow user to configure available energy sources"""
@@ -85,13 +85,12 @@ def configure_energy_sources():
     return sources
 
 
-def run_optimisation(heat_demand, light_demand, co2_demand, source_config):
+def run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data):    
     """Run optimisation with configured energy sources"""
     print("\nRunning optimisation with selected energy sources...")
 
     # Create optimiser instance
-    optimiser = OptimiseEnergySources(heat_demand, light_demand, co2_demand)
-
+    optimiser = OptimiseEnergySources(heat_demand, light_demand, co2_demand, climate_data)
     # Store original max powers
     original_max_powers = {
         'chp_max_power': optimiser.chp_max_power,
@@ -130,14 +129,16 @@ def run_optimisation(heat_demand, light_demand, co2_demand, source_config):
 
 def main():
     # Step 1: Run demand calculations and show plots
-    heat_demand, light_demand, co2_demand = run_demand_calculations()
+    heat_demand, light_demand, co2_demand, climate_data = run_demand_calculations()
 
     # Step 2: Configure energy sources
     source_config = configure_energy_sources()
 
     # Step 3: Run optimisation
     print("\nRunning optimisation with selected energy sources...")
-    result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config)
+    result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data)
+
+
 
     # Get the best solution's breakdown
     best_capacities = {
