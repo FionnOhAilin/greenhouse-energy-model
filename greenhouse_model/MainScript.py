@@ -137,6 +137,7 @@ def main():
     # Step 3: Run optimisation
     print("\nRunning optimisation with selected energy sources...")
     result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data)
+    print(f"Iterations (best run): {result.nit}, function evaluations: {result.nfev}")
 
 
 
@@ -315,7 +316,8 @@ def main():
         optimised_cost_components['CO2'] = {'capex': capex, 'opex': opex, 'fuel': fuel, 'co2_tax': co2_tax,
                                             'total': total}
 
-    print("co2 require", optimiser.co2_supply["CO2 Requirement"].sum())
+    co2_delivered_best = optimiser.calculate_co2_balance(result.x)
+    print(f"CO2 delivered (best solution): {co2_delivered_best.sum():,.0f} kg/yr")
     # Save optimisation results
     optimisation_data = {
         'capacities': best_capacities,
