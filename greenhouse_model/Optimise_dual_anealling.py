@@ -143,7 +143,7 @@ class OptimiseEnergySources:
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
 
         if solar > 0:
-            solar_supply = self.solar_south.calculate_supply(solar) 
+            solar_supply = self.solar_south.calculate_supply(solar * 1000)  # MW -> kW 
             solar_yearly_mwh = solar_supply["Electricity Output (MWh)"].sum()
             solar_avg_power = solar_yearly_mwh / 8.76 #Convert MWh/year to average MW
         else:
@@ -248,7 +248,7 @@ class OptimiseEnergySources:
             # Solar costs
             if solar > min_size:
                 solar_instance = SolarSupply(self.climate_data, surface="Solar Radiation (South Roof)")
-                self.solar_supply = solar_instance.calculate_supply(solar)
+                self.solar_supply = solar_instance.calculate_supply(solar * 1000)  # MW -> kW
                 solar_cost = Cost.SolarPV(
                     capital_cost=1.572e6 * solar ** -0.15 - 1.5e5,
                     base_capex=0,
