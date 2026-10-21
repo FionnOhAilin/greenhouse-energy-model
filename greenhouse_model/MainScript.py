@@ -299,18 +299,19 @@ def main():
                                                'total': total}
 
     if best_capacities['CO2'] > 0:
+        co2_import_best = optimiser.calculate_co2_import(result.x)  # hourly CO2 import for the best solution
         co2_cost = Cost.CO2Import(
             capital_cost=0,
             base_capex=0,
             operational_cost=0,
             fuel_cost=0.14678,
             power=best_capacities['CO2'],
-            energy_output=optimiser.co2_supply["CO2 Requirement"].sum(),
-            fuel_requirement=optimiser.co2_supply["CO2 Requirement"].sum(),
+            energy_output=co2_import_best.sum(),
+            fuel_requirement=co2_import_best.sum(),
             cc_power=0,
             lifetime=50,
             loan_term=20,
-            co2_emissions=optimiser.co2_supply["Direct CO2 Emissions"].sum()
+            co2_emissions=0.0  # imported CO2 has no direct emissions
         )
         capex, opex, fuel, co2_tax, total, _, _ = co2_cost.constant_cost()
         optimised_cost_components['CO2'] = {'capex': capex, 'opex': opex, 'fuel': fuel, 'co2_tax': co2_tax,
