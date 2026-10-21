@@ -139,7 +139,9 @@ def main():
     result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data)
     print(f"Iterations (best run): {result.nit}, function evaluations: {result.nfev}")
 
-
+    # Re-evaluate the best solution so the supply tables used below describe it,
+    # not the last candidate the optimiser tested
+    optimiser.calculate_total_cost(result.x)
 
     # Get the best solution's breakdown
     best_capacities = {
@@ -226,18 +228,18 @@ def main():
 
     if best_capacities['Solar'] > 0:
         solar_cost = Cost.SolarPV(
-            capital_cost=1.572e6 * best_capacities["Solar"] ** -0.15 - 1.5e6,
+            capital_cost=1.572e6 * best_capacities["Solar"] ** -0.15 - 1.5e5,  # matches optimiser
             base_capex=0,
             operational_cost=12000 * best_capacities["Solar"] /
-                             optimiser.solar_supply["Yearly Electricity Output"].sum(),
+                             optimiser.solar_supply["Electricity Output (MWh)"].sum(),
             fuel_cost=0,
             power=best_capacities['Solar'],
-            energy_output=optimiser.solar_supply["Yearly Electricity Output"].sum(),
+            energy_output=optimiser.solar_supply["Electricity Output (MWh)"].sum(),
             fuel_requirement=0,
             cc_power=0,
             lifetime=30,
             loan_term=20,
-            co2_emissions=optimiser.solar_supply["Direct CO2 Emissions"].sum()
+            co2_emissions=optimiser.solar_supply["Embodied CO2 Emissions (kg)"].sum()
         )
         capex, opex, fuel, co2_tax, total, _, _ = solar_cost.constant_cost()
         optimised_cost_components['Solar'] = {'capex': capex, 'opex': opex, 'fuel': fuel, 'co2_tax': co2_tax,

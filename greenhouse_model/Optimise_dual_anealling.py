@@ -145,7 +145,7 @@ class OptimiseEnergySources:
         if solar > 0:
             solar_supply = self.solar_south.calculate_supply(solar * 1000)  # MW -> kW 
             solar_yearly_mwh = solar_supply["Electricity Output (MWh)"].sum()
-            solar_avg_power = solar_yearly_mwh / 8.76 #Convert MWh/year to average MW
+            solar_avg_power = solar_yearly_mwh / 8760  # MWh per year / hours per year = average MW        
         else:
             solar_avg_power = 0
 
