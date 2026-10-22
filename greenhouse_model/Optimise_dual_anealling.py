@@ -72,7 +72,7 @@ class OptimiseEnergySources:
         # Daylight gate: plants only take up CO2 in light, so night-time demand is set to zero
         PAR_THRESHOLD = 50  # W/m2. TO CHECK: placeholder value, set from crop data
         self.co2_daylight = co2_demand["Total PAR"].astype(float).to_numpy() > PAR_THRESHOLD
-        self.co2_effective_demand = np.where(self.co2_daylight, self.co2_hourly_demand, 0.0)
+        self.co2_effective_demand = self.co2_hourly_demand.copy()  
 
         # Store maximum demands
         self.max_heat = heat_demand["QnetMWh"].max()
