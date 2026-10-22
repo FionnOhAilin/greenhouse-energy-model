@@ -570,7 +570,7 @@ class OptimiseEnergySources:
                 bounds=bounds,  # Search space limit for each variable
                 x0=x0,  # Starting point in the search space
                 initial_temp=500,  # High initial temperature for exploration, 5230 is the default, 1310.121
-                maxiter=50,  # Max number of global iterations, 1000 is the default, 132
+                maxiter=10,  # Max number of global iterations, 1000 is the default, 132
                 visit=1.01,
                 # Controls the relative weighting of the global (Cauchy) and local (Gaussian) search components,
                 # range is 1 to 3, 2.62 is the default

@@ -14,7 +14,7 @@ from greenhouse_model.LightDemand import calculate_lightdemand
 from greenhouse_model.CO2Demand import calculate_co2demand
 from greenhouse_model.Optimise_dual_anealling import OptimiseEnergySources
 from greenhouse_model import Cost
-
+from greenhouse_model.solar_compare import compare_solar_profiles
 
 def run_demand_calculations():
     """Run initial demand calculations and display plots"""
@@ -139,9 +139,12 @@ def main():
     result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data)
     print(f"Iterations (best run): {result.nit}, function evaluations: {result.nfev}")
 
+
     # Re-evaluate the best solution so the supply tables used below describe it,
     # not the last candidate the optimiser tested
     optimiser.calculate_total_cost(result.x)
+
+    compare_solar_profiles(optimiser, solar_mw=0.2, save_prefix="solar_compare")
 
     # Get the best solution's breakdown
     best_capacities = {
