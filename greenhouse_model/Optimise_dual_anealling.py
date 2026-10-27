@@ -5,7 +5,8 @@ from joblib import load
 from greenhouse_model import EnergyDemand
 from greenhouse_model import Cost
 import time
-from SolarSupply import SolarSupply
+from greenhouse_model.SolarSupply import SolarSupply
+from greenhouse_model.units import annual_mwh_to_average_mw
 from datetime import timedelta, datetime
 
 CO2_SHORTFALL_PENALTY = 10.0  # £ per kg of annual CO2 shortfall. TO BE TUNED
@@ -145,7 +146,7 @@ class OptimiseEnergySources:
         if solar > 0:
             solar_supply = self.solar_south.calculate_supply(solar * 1000)  # MW -> kW 
             solar_yearly_mwh = solar_supply["Electricity Output (MWh)"].sum()
-            solar_avg_power = solar_yearly_mwh / 8760  # MWh per year / hours per year = average MW        
+            solar_avg_power = annual_mwh_to_average_mw(solar_yearly_mwh)        
         else:
             solar_avg_power = 0
 
