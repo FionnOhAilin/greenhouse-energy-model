@@ -1,8 +1,16 @@
+# Python cache files
 __pycache__/
 *.pyc
+
+# Virtual environments (machine-specific, rebuilt from pyproject.toml)
 test_venv/
 venv/
 .venv/
+
+# Build files created by pip install -e .
+*.egg-info/
+
+# Generated data (rebuilt by running the model)
 climateDF.json
 climateDF.csv
 climateTEST.csv
@@ -11,10 +19,11 @@ cropDF.json
 heat_demand.json
 light_demand.json
 co2_demand.json
+
+# Optimiser outputs
 optimisation_results.json
 optimisation_minima_*.csv
 optimisation_evaluations_*.csv
-Other Versions and Reference Files/*.egg-info/
-optimisation_minima_*.csv
-optimisation_results.json
-optimisation_evaluations_*.csv
+
+# Old versions and reference material
+Other Versions and Reference Files/
