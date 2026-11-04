@@ -12,3 +12,16 @@
 
 ### Changed
 - `Optimise_dual_anealling.py` imports 'SolarSupply', from the package, not from the top level path.
+
+
+### 04/11/2026
+
+### Fixed
+### Added
+- dispatch.py: a script that takes the hourly heat demand and capacity of each source and loops over each source, cheapest first so each source covers what's left of the demand that it's capacity allows. 
+
+- Added `tests/dispatch_test.py`: three unit tests for `merit_order_dispatch`.
+  - Enough capacity: the cheapest source fills first and is capped at its capacity; the next source covers only the rest.
+  - Not enough capacity: unmet demand appears only in hours where demand is above total installed capacity.
+  - Energy balance: total supply plus unmet demand equals demand in every hour (no energy created or lost).
+### Changed
