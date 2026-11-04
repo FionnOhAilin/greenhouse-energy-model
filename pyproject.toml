@@ -30,3 +30,6 @@ packages = ["greenhouse_model"]
 
 [project.scripts]
 greenhouse-model = "greenhouse_model.MainScript:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

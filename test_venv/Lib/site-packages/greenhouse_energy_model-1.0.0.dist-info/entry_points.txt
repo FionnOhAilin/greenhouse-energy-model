@@ -1,2 +1,0 @@
-[console_scripts]
-greenhouse-model = greenhouse_model.MainScript:main

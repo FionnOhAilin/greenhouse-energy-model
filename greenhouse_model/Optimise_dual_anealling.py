@@ -5,9 +5,11 @@ from joblib import load
 from greenhouse_model import EnergyDemand
 from greenhouse_model import Cost
 import time
-from SolarSupply import SolarSupply
+from greenhouse_model.SolarSupply import SolarSupply
+from greenhouse_model.units import annual_mwh_to_average_mw
 from datetime import timedelta, datetime
 
+CO2_SHORTFALL_PENALTY = 10.0  # £ per kg of annual CO2 shortfall. TO BE TUNED
 
 class OptimiseEnergySources:
     """
@@ -58,6 +60,21 @@ class OptimiseEnergySources:
         self.co2_max_demand, self.co2_max_power = self.co2.calculate_max_supply()
         self.co2_max_supply = self.co2.calculate_supply(self.co2_max_power, self.co2_max_power)
 
+        # Hourly CO2 profiles (kg/h per MW of capacity, or per kg/h of import capacity)
+        self.co2_hourly_demand = co2_demand["Total CO2 Demand"].astype(float).to_numpy()
+        self.chp_co2_profile = (self.chp_demand["Max Fuel Requirement"].to_numpy()
+                                * EnergyDemand.CHP.gas_co2_per_Mwh * EnergyDemand.CHP.cc_efficiency 
+                                / self.chp_max_power)
+        self.boiler_co2_profile = (self.boiler_demand["Max Fuel Requirement"].to_numpy()
+                                    * EnergyDemand.Boiler.gas_co2_per_Mwh * EnergyDemand.Boiler.cc_efficiency
+                                    / self.boiler_max_power) 
+        self.co2_import_profile = self.co2_hourly_demand / self.co2_max_power
+
+        # Daylight gate: plants only take up CO2 in light, so night-time demand is set to zero
+        PAR_THRESHOLD = 50  # W/m2. TO CHECK: placeholder value, set from crop data
+        self.co2_daylight = co2_demand["Total PAR"].astype(float).to_numpy() > PAR_THRESHOLD
+        self.co2_effective_demand = self.co2_hourly_demand.copy()  
+
         # Store maximum demands
         self.max_heat = heat_demand["QnetMWh"].max()
         self.max_light = light_demand["MWh"].max()
@@ -107,14 +124,29 @@ class OptimiseEnergySources:
             'CO2': {'capex': 0, 'opex': 0, 'fuel': 0}
         }
 
+    def calculate_co2_import(self, x):
+        """Hourly CO2 delivered by the import pump (kg/h), after exhaust has been used"""
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+        exhaust = chp * self.chp_co2_profile + boiler * self.boiler_co2_profile
+        exhaust_used = np.minimum(exhaust, self.co2_effective_demand)
+        remaining = self.co2_effective_demand - exhaust_used
+        return np.minimum(remaining, co2)  # co2 is pump capacity in kg/h
+
+    def calculate_co2_balance(self, x):
+        """Hourly CO2 delivered (kg/h): exhaust first, then capped import"""
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+        exhaust = chp * self.chp_co2_profile + boiler * self.boiler_co2_profile
+        exhaust_used = np.minimum(exhaust, self.co2_effective_demand)
+        return exhaust_used + self.calculate_co2_import(x)
+    
     def calculate_supplies(self, x):
         """Calculate supply of heat, light, and CO2 from given capacities"""
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
 
         if solar > 0:
-            solar_supply = self.solar_south.calculate_supply(solar) 
+            solar_supply = self.solar_south.calculate_supply(solar * 1000)  # MW -> kW 
             solar_yearly_mwh = solar_supply["Electricity Output (MWh)"].sum()
-            solar_avg_power = solar_yearly_mwh / 8.76 #Convert MWh/year to average MW
+            solar_avg_power = annual_mwh_to_average_mw(solar_yearly_mwh)        
         else:
             solar_avg_power = 0
 
@@ -134,12 +166,9 @@ class OptimiseEnergySources:
                 grid
         )
 
-        # Calculate CO2 capture
-        co2_supply = (
-                chp / self.chp.fuel_to_electric_efficiency * self.chp.gas_co2_per_Mwh * self.chp.cc_efficiency +
-                boiler * self.boiler.gas_co2_per_Mwh * self.boiler.fuel_to_heat_efficiency +
-                co2
-        )
+        
+        # Calculate CO2 capture (hourly)
+        co2_supply = self.calculate_co2_balance(x)
 
         return heat_supply, light_supply, co2_supply
 
@@ -220,7 +249,7 @@ class OptimiseEnergySources:
             # Solar costs
             if solar > min_size:
                 solar_instance = SolarSupply(self.climate_data, surface="Solar Radiation (South Roof)")
-                self.solar_supply = solar_instance.calculate_supply(solar)
+                self.solar_supply = solar_instance.calculate_supply(solar * 1000)  # MW -> kW
                 solar_cost = Cost.SolarPV(
                     capital_cost=1.572e6 * solar ** -0.15 - 1.5e5,
                     base_capex=0,
@@ -301,8 +330,11 @@ class OptimiseEnergySources:
                 total_cost += lifetime_cost
 
             if co2 > min_size:
-                co2_instance = EnergyDemand.CO2Import(self.heat_demand, self.light_demand, self.co2_demand)
-                self.co2_supply = co2_instance.calculate_supply(co2, self.co2_max_power)
+                co2_import_hourly = self.calculate_co2_import(x)
+                self.co2_supply = pd.DataFrame({
+                    "CO2 Requirement": co2_import_hourly,
+                    "Direct CO2 Emissions": 0.0,
+                })
                 co2_cost = Cost.CO2Import(
                     capital_cost=0,
                     base_capex=0,
@@ -418,14 +450,12 @@ class OptimiseEnergySources:
             # Calculate supply violations
             heat_undersupply = max(0, self.max_heat - heat_supply)
             light_undersupply = max(0, self.max_light - light_supply)
-            co2_undersupply = max(0, self.max_co2 - co2_supply)
-
+            co2_undersupply = np.maximum(0, self.co2_effective_demand - co2_supply).sum()  # kg per year, daylight only
             # Calculate undersupply penalties, used to penalise capacities that do not meet demands
             heat_undersupply_penalty = 1e12 * heat_undersupply ** 2
             light_undersupply_penalty = 1e12 * light_undersupply ** 2
-            co2_undersupply_penalty = 1e10 * co2_undersupply ** 2
+            co2_undersupply_penalty = CO2_SHORTFALL_PENALTY * co2_undersupply
             undersupply_penalty = heat_undersupply_penalty + light_undersupply_penalty + co2_undersupply_penalty
-
             total_cost = base_cost + undersupply_penalty
 
             # Store the iteration data
@@ -541,7 +571,7 @@ class OptimiseEnergySources:
                 bounds=bounds,  # Search space limit for each variable
                 x0=x0,  # Starting point in the search space
                 initial_temp=500,  # High initial temperature for exploration, 5230 is the default, 1310.121
-                maxiter=50,  # Max number of global iterations, 1000 is the default, 132
+                maxiter=10,  # Max number of global iterations, 1000 is the default, 132
                 visit=1.01,
                 # Controls the relative weighting of the global (Cauchy) and local (Gaussian) search components,
                 # range is 1 to 3, 2.62 is the default
@@ -626,8 +656,7 @@ def main():
         print(f"\nMinimum annual cost: £{result.fun:,.2f}")
 
         # Verify constraints are met
-        heat_supply, light_supply, co2_supply = optimiser.calculate_supplies(result.x)
-
+        heat_supply, light_supply, _ = optimiser.calculate_supplies(result.x)
         print("\nConstraint Verification:")
         print(f"Heat Supply:")
         print(f"Required: {optimiser.max_heat:.4f} MW")
@@ -637,9 +666,12 @@ def main():
         print(f"Required: {optimiser.max_light:.4f} MW")
         print(f"Supplied: {light_supply:.4f} MW")
 
-        print(f"\nCO2 Supply:")
-        print(f"Required: {optimiser.max_co2:.4f} kg/h")
-        print(f"Supplied: {co2_supply:.4f} kg/h")
+        co2_hourly = optimiser.calculate_co2_balance(result.x)
+        co2_short = np.maximum(0, optimiser.co2_effective_demand - co2_hourly)
+        print("\nCO2 Supply:")
+        print(f"Daylight demand: {optimiser.co2_effective_demand.sum():,.0f} kg")
+        print(f"Daylight shortfall: {co2_short.sum():,.0f} kg")
+        print(f"Daylight hours with shortfall: {(co2_short > 1e-6).sum()}")
 
         # Print optimisation statistics
         print("\nOptimisation Statistics:")

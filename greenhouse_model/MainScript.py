@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 import json
+import numpy as np
 
 from greenhouse_model.InputCalculations import calculate_inputs
 from greenhouse_model.HTCoefficients import calculate_htc
@@ -13,7 +14,7 @@ from greenhouse_model.LightDemand import calculate_lightdemand
 from greenhouse_model.CO2Demand import calculate_co2demand
 from greenhouse_model.Optimise_dual_anealling import OptimiseEnergySources
 from greenhouse_model import Cost
-
+from greenhouse_model.solar_compare import compare_solar_profiles
 
 def run_demand_calculations():
     """Run initial demand calculations and display plots"""
@@ -26,8 +27,7 @@ def run_demand_calculations():
     light_demand = calculate_lightdemand(inputs_data, htc, heat_demand)
     co2_demand = calculate_co2demand(inputs_data, htc, heat_demand, light_demand)
 
-    return heat_demand, light_demand, co2_demand
-
+    return heat_demand, light_demand, co2_demand, inputs_data["climate"]
 
 def configure_energy_sources():
     """Allow user to configure available energy sources"""
@@ -85,13 +85,12 @@ def configure_energy_sources():
     return sources
 
 
-def run_optimisation(heat_demand, light_demand, co2_demand, source_config):
+def run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data):    
     """Run optimisation with configured energy sources"""
     print("\nRunning optimisation with selected energy sources...")
 
     # Create optimiser instance
-    optimiser = OptimiseEnergySources(heat_demand, light_demand, co2_demand)
-
+    optimiser = OptimiseEnergySources(heat_demand, light_demand, co2_demand, climate_data)
     # Store original max powers
     original_max_powers = {
         'chp_max_power': optimiser.chp_max_power,
@@ -130,14 +129,22 @@ def run_optimisation(heat_demand, light_demand, co2_demand, source_config):
 
 def main():
     # Step 1: Run demand calculations and show plots
-    heat_demand, light_demand, co2_demand = run_demand_calculations()
+    heat_demand, light_demand, co2_demand, climate_data = run_demand_calculations()
 
     # Step 2: Configure energy sources
     source_config = configure_energy_sources()
 
     # Step 3: Run optimisation
     print("\nRunning optimisation with selected energy sources...")
-    result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config)
+    result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data)
+    print(f"Iterations (best run): {result.nit}, function evaluations: {result.nfev}")
+
+
+    # Re-evaluate the best solution so the supply tables used below describe it,
+    # not the last candidate the optimiser tested
+    optimiser.calculate_total_cost(result.x)
+
+    compare_solar_profiles(optimiser, solar_mw=0.2, save_prefix="solar_compare")
 
     # Get the best solution's breakdown
     best_capacities = {
@@ -224,18 +231,18 @@ def main():
 
     if best_capacities['Solar'] > 0:
         solar_cost = Cost.SolarPV(
-            capital_cost=1.572e6 * best_capacities["Solar"] ** -0.15 - 1.5e6,
+            capital_cost=1.572e6 * best_capacities["Solar"] ** -0.15 - 1.5e5,  # matches optimiser
             base_capex=0,
             operational_cost=12000 * best_capacities["Solar"] /
-                             optimiser.solar_supply["Yearly Electricity Output"].sum(),
+                             optimiser.solar_supply["Electricity Output (MWh)"].sum(),
             fuel_cost=0,
             power=best_capacities['Solar'],
-            energy_output=optimiser.solar_supply["Yearly Electricity Output"].sum(),
+            energy_output=optimiser.solar_supply["Electricity Output (MWh)"].sum(),
             fuel_requirement=0,
             cc_power=0,
             lifetime=30,
             loan_term=20,
-            co2_emissions=optimiser.solar_supply["Direct CO2 Emissions"].sum()
+            co2_emissions=optimiser.solar_supply["Embodied CO2 Emissions (kg)"].sum()
         )
         capex, opex, fuel, co2_tax, total, _, _ = solar_cost.constant_cost()
         optimised_cost_components['Solar'] = {'capex': capex, 'opex': opex, 'fuel': fuel, 'co2_tax': co2_tax,
@@ -297,24 +304,26 @@ def main():
                                                'total': total}
 
     if best_capacities['CO2'] > 0:
+        co2_import_best = optimiser.calculate_co2_import(result.x)  # hourly CO2 import for the best solution
         co2_cost = Cost.CO2Import(
             capital_cost=0,
             base_capex=0,
             operational_cost=0,
             fuel_cost=0.14678,
             power=best_capacities['CO2'],
-            energy_output=optimiser.co2_supply["CO2 Requirement"].sum(),
-            fuel_requirement=optimiser.co2_supply["CO2 Requirement"].sum(),
+            energy_output=co2_import_best.sum(),
+            fuel_requirement=co2_import_best.sum(),
             cc_power=0,
             lifetime=50,
             loan_term=20,
-            co2_emissions=optimiser.co2_supply["Direct CO2 Emissions"].sum()
+            co2_emissions=0.0  # imported CO2 has no direct emissions
         )
         capex, opex, fuel, co2_tax, total, _, _ = co2_cost.constant_cost()
         optimised_cost_components['CO2'] = {'capex': capex, 'opex': opex, 'fuel': fuel, 'co2_tax': co2_tax,
                                             'total': total}
 
-    print("co2 require", optimiser.co2_supply["CO2 Requirement"].sum())
+    co2_delivered_best = optimiser.calculate_co2_balance(result.x)
+    print(f"CO2 delivered (best solution): {co2_delivered_best.sum():,.0f} kg/yr")
     # Save optimisation results
     optimisation_data = {
         'capacities': best_capacities,
