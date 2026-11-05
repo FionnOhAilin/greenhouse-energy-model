@@ -7,6 +7,7 @@ from greenhouse_model import Cost
 import time
 from greenhouse_model.SolarSupply import SolarSupply
 from greenhouse_model.units import annual_mwh_to_average_mw
+from greenhouse_model.dispatch import merit_order_dispatch
 from datetime import timedelta, datetime
 
 CO2_SHORTFALL_PENALTY = 10.0  # £ per kg of annual CO2 shortfall. TO BE TUNED
@@ -60,6 +61,9 @@ class OptimiseEnergySources:
         self.co2_max_demand, self.co2_max_power = self.co2.calculate_max_supply()
         self.co2_max_supply = self.co2.calculate_supply(self.co2_max_power, self.co2_max_power)
 
+        # Hourly heat demand (MW), used by the merit-order heat dispatch
+        self.heat_hourly_demand = heat_demand["QnetMWh"].astype(float).to_numpy()
+
         # Hourly CO2 profiles (kg/h per MW of capacity, or per kg/h of import capacity)
         self.co2_hourly_demand = co2_demand["Total CO2 Demand"].astype(float).to_numpy()
         self.chp_co2_profile = (self.chp_demand["Max Fuel Requirement"].to_numpy()
@@ -69,6 +73,11 @@ class OptimiseEnergySources:
                                     * EnergyDemand.Boiler.gas_co2_per_Mwh * EnergyDemand.Boiler.cc_efficiency
                                     / self.boiler_max_power) 
         self.co2_import_profile = self.co2_hourly_demand / self.co2_max_power
+
+        # Hourly CHP heat output (MW heat per MW of electric capacity), must-run on its own fuel profile
+        self.chp_heat_profile = (self.chp_demand["Max Fuel Requirement"].to_numpy()
+                                 * EnergyDemand.CHP.fuel_to_heat_efficiency
+                                 / self.chp_max_power)
 
         # Daylight gate: plants only take up CO2 in light, so night-time demand is set to zero
         PAR_THRESHOLD = 50  # W/m2. TO CHECK: placeholder value, set from crop data
@@ -138,6 +147,34 @@ class OptimiseEnergySources:
         exhaust = chp * self.chp_co2_profile + boiler * self.boiler_co2_profile
         exhaust_used = np.minimum(exhaust, self.co2_effective_demand)
         return exhaust_used + self.calculate_co2_import(x)
+
+    def calculate_heat_dispatch(self, x): 
+        """Hourly heat output (MW) from each source
+        CHP runs first as a must-run; the rest are dispatched in the merit order."""
+
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+
+        # CHP: must run on its own fuel profile. Heat above demand is dumped
+
+        chp_heat = chp * self.chp_heat_profile 
+        chp_heat_used = np.minimum(chp_heat, self.heat_hourly_demand)
+        remaining = self.heat_hourly_demand - chp_heat_used 
+
+        # The rest of the sources, cheapest running cost first (EUR/MWh heat incl. carbon tax)
+        # geothermal 41.5, GSHP, 65.2, waste heat 87.2, boiler 129.6
+        capacities = [geo, gshp, waste * EnergyDemand.WasteHeat.exchanger_efficiency, boiler]
+        outputs, unmet = merit_order_dispatch(remaining, capacities)
+        geo_heat, gshp_heat, waste_heat, boiler_heat = outputs 
+
+        return {
+            "CHP": chp_heat_used,
+            "CHP dumped": chp_heat - chp_heat_used,
+            "Geothermal": geo_heat,
+            "GSHP": gshp_heat,
+            "Waste Heat": waste_heat,
+            "Boiler": boiler_heat,
+            "Unmet": unmet,
+        }
     
     def calculate_supplies(self, x):
         """Calculate supply of heat, light, and CO2 from given capacities"""
@@ -176,6 +213,7 @@ class OptimiseEnergySources:
         """Calculate total annual cost for all technologies"""
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
         total_cost = 0  # initialise total cost
+        heat_dispatch = self.calculate_heat_dispatch(x)
 
         current_cost_components = dict(self.best_cost_components)
 
@@ -206,7 +244,7 @@ class OptimiseEnergySources:
             # Geothermal costs
             if geo > min_size:
                 geo_instance = EnergyDemand.Geothermal(self.heat_demand, self.light_demand, self.co2_demand)
-                self.geo_supply = geo_instance.calculate_supply(geo, self.geo_max_power)
+                self.geo_supply = geo_instance.calculate_supply_from_dispatch(heat_dispatch["Geothermal"])
                 geo_cost = Cost.Geothermal(
                     capital_cost=2890000 * geo ** -0.45 + 1.2e6,
                     base_capex=0,

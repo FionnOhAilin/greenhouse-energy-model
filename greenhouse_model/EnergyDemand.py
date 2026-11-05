@@ -114,6 +114,17 @@ class Geothermal(EnergySource):
 
         return df
 
+    def calculate_supply_from_dispatch(self, heat_output):
+        """Hourly supply from a dispatched heat output profile"""
+        df = pd.DataFrame(index=self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output # Heat delivered in each hour (MWh)
+        df["Electricity for Heat"] = df["Yearly Heat Output"] / self.cop #Electricity drawn by the pumps
+        df["Direct CO2 Emissions"] = 0
+        df["Related CO2 Emissions"] = self.grid_emissions * df["Electricity for Heat"]
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"]
+
+        return df 
+
 
 class GSHP(EnergySource):
     cop = 3.5  # Coefficient of performance of GSHP system (Taken from UG Heat Pump)
