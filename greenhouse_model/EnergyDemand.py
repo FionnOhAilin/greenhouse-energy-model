@@ -186,6 +186,20 @@ class WasteHeat(EnergySource):
 
         return df
 
+    def calculate_supply_from_dispatch(self, heat_output):
+        """Hourly supply from a dispatched heat output profile""" 
+
+        df = pd.DataFrame(index = self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output #Heat delivered to the greenhouse each hour (MWh)
+        #Steam drawn from the supplier is more than the heat delivered because of exchanger losses
+        df["Steam Required"] = df["Yearly Heat Output"] / self.exchanger_efficiency 
+        df["Direct CO2 Emissions"] = 0
+        # (steam / waste-to-heat efficiency) / LHV per tonne of waste * kgCO2 per tonne of waste
+        df["Related CO2 Emissions"] = ((df["Steam Required"] / 0.37 ) / 2.78 ) * 425
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"]
+
+        return df 
+
 
 class SolarPV(EnergySource):
     capacity_factor = 0.127  # Capacity factor of solar (Taken from Renewables.ninja for North Dublin)

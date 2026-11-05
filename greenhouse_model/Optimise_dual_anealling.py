@@ -309,7 +309,7 @@ class OptimiseEnergySources:
             # Waste Heat costs
             if waste > min_size:
                 waste_instance = EnergyDemand.WasteHeat(self.heat_demand, self.light_demand, self.co2_demand)
-                self.wasteheat_supply = waste_instance.calculate_supply(waste, self.wasteheat_max_power)
+                self.wasteheat_supply = waste_instance.calculate_supply_from_dispatch(heat_dispatch["Waste Heat"])
                 waste_cost = Cost.WasteHeat(
                     capital_cost=0,
                     base_capex=0,
