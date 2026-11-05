@@ -150,6 +150,16 @@ class GSHP(EnergySource):
 
         return df
 
+    def calculate_supply_from_dispatch(self,heat_output):
+        """   Hourly supply from dispatched heat profile outputs """
+        df = pd.DataFrame(index = self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output  # Heat delivered each hour (MWh)
+        df["Electricity for Heat"] = df["Yearly Heat Output"] / self.cop  # Electricity drawn by the heat pump
+        df["Direct CO2 Emissions"] = 0
+        df["Related CO2 Emissions"] = self.grid_emissions * df["Electricity for Heat"]
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"]
+
+        return df
 
 class WasteHeat(EnergySource):
     exchanger_efficiency = 0.93  # SEAI Steam Systems

@@ -25,3 +25,12 @@
   - Not enough capacity: unmet demand appears only in hours where demand is above total installed capacity.
   - Energy balance: total supply plus unmet demand equals demand in every hour (no energy created or lost).
 ### Changed
+
+### 05/11/2026 
+### Added:
+- `calculate_heat_dispatch()` to the optimiser: CHP runs first as must-run (surplus heat dumped), then geothermal, GSHP, waste heat and boiler are dispatched in merit order.
+- `Geothermal.calculate_supply_from_dispatch()`: costs geothermal on its dispatched hourly output instead of a proportional share of demand. Geothermal now uses this in `calculate_total_cost`.
+-`GSHP.calculate_supply_from_dispatch()`: cost GSHP on its dispatched hourly output instead of proportional demand. 
+
+### Verified
+- at full size, old and new methods give identical heat (402.14 MWh), electricity (73.12 MWh) and CO2 (24,274 kg). At half size, merit order gives 93% of annual heat vs 50% under the proportional split (heat load factor 22%).

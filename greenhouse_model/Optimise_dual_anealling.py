@@ -245,11 +245,11 @@ class OptimiseEnergySources:
             if geo > min_size:
                 geo_instance = EnergyDemand.Geothermal(self.heat_demand, self.light_demand, self.co2_demand)
                 self.geo_supply = geo_instance.calculate_supply_from_dispatch(heat_dispatch["Geothermal"])
+                geo_heat_total = self.geo_supply["Yearly Heat Output"].sum()
                 geo_cost = Cost.Geothermal(
                     capital_cost=2890000 * geo ** -0.45 + 1.2e6,
                     base_capex=0,
-                    operational_cost=11000 * geo /
-                                     self.geo_supply["Yearly Heat Output"].sum(),
+                    operational_cost=(11000 * geo / geo_heat_total) if geo_heat_total > 0 else 0,
                     fuel_cost=228.1,
                     power=geo,
                     energy_output=self.geo_supply["Yearly Heat Output"].sum(),
@@ -266,11 +266,12 @@ class OptimiseEnergySources:
             # GSHP costs
             if gshp > min_size:
                 gshp_instance = EnergyDemand.GSHP(self.heat_demand, self.light_demand, self.co2_demand)
-                self.gshp_supply = gshp_instance.calculate_supply(gshp, self.gshp_max_power)
+                self.gshp_supply = gshp_instance.calculate_supply_from_dispatch(heat_dispatch["GSHP"])
+                gshp_heat_total = self.gshp_supply["Yearly Heat Output"].sum()
                 gshp_cost = Cost.GSHP(
                     capital_cost=1297000 * gshp ** -0.21557,
                     base_capex=0,
-                    operational_cost=8000 * gshp / self.gshp_supply["Yearly Heat Output"].sum(),
+                    operational_cost=(8000 * gshp / gshp_heat_total) if gshp_heat_total > 0 else 0,
                     fuel_cost=228.1,
                     power=gshp,
                     energy_output=self.gshp_supply["Yearly Heat Output"].sum(),
