@@ -463,8 +463,13 @@ class OptimiseEnergySources:
 
         return False
 
+    def snap_to_zero(self, x):
+        """Set any capacity below its minimum installable size to exactly zero"""
+        return np.where(x < self.min_sizes, 0.0, x)
+
     def objective(self, x):
         """Objective function for dual annealing. the objective is the lowest combination of costs for the technologies"""
+        x = self.snap_to_zero(x)
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
 
         # Check if the current solution is already converged
@@ -611,6 +616,9 @@ class OptimiseEnergySources:
             (0, self.co2_max_power)
         ]
 
+        # Minimum installable size: below 2% of a technology's upper bound, treat it as not installed
+        self.min_sizes = 0.02 * np.array([upper for lower, upper in bounds])
+
         results = []
 
         initial_points = [
@@ -643,7 +651,7 @@ class OptimiseEnergySources:
                 x0=x0,  # Starting point in the search space
                 initial_temp=500,  # High initial temperature for exploration, 5230 is the default, 1310.121
                 maxiter=50,  # Max number of global iterations, 1000 is the default, 132
-                visit=2.62, # Changed from 1.01 to the default value of 2.62
+                visit=2.62, # Changed from 1.01 to the default value of
                 # Controls the relative weighting of the global (Cauchy) and local (Gaussian) search components,
                 # range is 1 to 3, 2.62 is the default
                 accept=-5,
@@ -661,6 +669,7 @@ class OptimiseEnergySources:
         if self.best_solution is not None and self.best_cost < best_result.fun:
             best_result.x = self.best_solution
             best_result.fun = self.best_cost
+        best_result.x = self.snap_to_zero(best_result.x)
 
         minima_df = pd.DataFrame(self.local_minima)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

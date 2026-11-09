@@ -47,7 +47,35 @@
 
 
 ### Fixed
-- With only the boiler cost converted, the CO2 balance still credited the boiler with having exhaust from its old full-year profile. The optimiser exploited this and used a boiler capacity of 0.1993 MW to supply CO2, even though it wasn't counted as burning any gas (basically got free CO2). Adding calculate_exhaust_CO2 fixed this. 
+- With only the boiler cost converted, the CO2 balance still credited the boiler with having exhaust from its old full-year profile. The optimiser exploited this and used a boiler capacity of 0.1993 MW to supply CO2, even though it wasn't counted as burning any gas (basically got free CO2). Adding `calculate_exhaust_CO2` fixed this. 
 
-### Experiment
-- Changed `visit` from 1.01 to 2.62 (default) with no waste heat and maxiter = 50. Result unchanged. This design is one of the hardcoded starting points and the search never improved on it. My current explanation is that the optimimum lies on the edges of the constraints, and single-variable move always either breaks a constraint or makes it more expensive, random all-variable moves are never landing on a feasible, cheap design. 
+
+### Optimiser Investigation (optimiser-tuning)
+
+### 1. Finding a target using direct search
+- No-waste-heat case --> the optimiser returned GSHP alone at 0.2071 MW (grid 0.0792 MW, CO2 pump 30.2274 kg/h): £120,734.63
+- `check_hybrid_designs.py` costs GSHP and boiler splits directly through the `_calculate_objective` where gshp covers a certain base load and boiler covers peak. 
+- Best Split was 35% GSHP 65% Boiler = €109,682. Boiler alone and GSHP alone were the most expensive splits so that proves the optimiser is missing out. It is a search problem not a model problem. 
+
+### 2. Experiment: visit 1.01 -> 2.62 
+- Changed `visit` from 1.01 to 2.62 (default) with no waste heat and maxiter = 50. Result unchanged. This design is one of the hardcoded starting points and the search never improved on it.
+
+### 3. First Diagnosis
+ - My current explanation is that the optimimum lies on the edges of the constraints, and single-variable move always either breaks a constraint or makes it more expensive, random all-variable moves are never landing on a feasible, cheap design.  
+
+### 4. Evidence from output files
+- `optimisation_evaluations.csv` showed that almost every annealing design had all eight technologies switched on at small sizes.
+- `optimisation_minima.csv` shows each new improvement, so the annealing did improve the design over 50 times and single variable moves can make real improvements.
+- But each design still had nearly all technologies active. The overall winner was the hand picked starting point, ie it never improved over the setpoint.
+- Unreachable Zeros: the search continuously tries random values, which rarely end up being exact zero. Capex scales as size^(scaling factor) so for example if a technology was only 10W capacity it could still cost >€100/yr. 
+- Constraint coupling: removing one unit only helps a solution if another grows by the right amount in the same evaluation.
+
+### 5. Bug found in the starting points
+- Starting points 1 and 2 put `self.grid_max_power` in position 5 (waste heat) instead of position 6 (grid). Start 3 has 0.0319 in the waste heat slot (a commented-out line suggests grid was intended). Row 1 of the minima file shows the effect: no lighting supply and a £982M light penalty. Not yet fixed, to keep experiments separate.
+
+### 6. Experiment: snap capacities below 2% of their upper bound to exactly zero
+- `snap_to_zero()` sets any capacity below 2% of its upper bound to exactly 0. It is applied in `objective()` and to the final result. 
+- Result: €120,607.53 from €120,734.63 but the design changed:
+ - The annealing found a GSHP + boiler hybrid by itself for the first time: GSHP 0.0673 MW (6,056 h, base load) + boiler 0.1243 MW (2,194 h, peaks), close to the best split from direct search (0.0725 + 0.1346).
+  - It also kept CHP 0.0106 MW and solar 0.0949 MW, with grid reduced to 0.0590 MW. These add roughly £11k vs the target.
+- Interpretation: snapping fixed the unreachable-zeros problem; the heat side reached the hybrid. Constraint coupling remains on the light side: removing CHP and solar needs the grid to rise back to 0.0792 MW in the same move.
