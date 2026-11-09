@@ -34,3 +34,14 @@
 
 ### Verified
 - at full size, old and new methods give identical heat (402.14 MWh), electricity (73.12 MWh) and CO2 (24,274 kg). At half size, merit order gives 93% of annual heat vs 50% under the proportional split (heat load factor 22%).
+
+
+### 09/11/2026
+
+### Added:
+- 'WasteHeat.Calculate_supply_from_dispatch()': waste heat is now costed on its hourly dispatched output; steam drawn = heat delivered / 0.93. Optimium solution didnt change.
+- Boiler.Calculate_supply_from_dispatch(): The boiler is now costed on its dispatched heat ouput (fuel = heat / 0.775). It is heat led onl. Added a zero-output guard to boiler opex.
+- Added calculate_exhaust_co2(): to the optimiser, boiler exhaust now follows the dispatched gas use.
+
+### Fixed
+- With only the boiler cost converted, the CO2 balance still credited the boiler with having exhaust from its old full-year profile. The optimiser exploited this and used a boiler capacity of 0.1993 MW to supply CO2, even though it wasn't counted as burning any gas (basically got free CO2). Adding calculate_exhaust_CO2 fixed this. 

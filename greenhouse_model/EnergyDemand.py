@@ -283,6 +283,17 @@ class Boiler(EnergySource):
 
         return df
 
+    def calculate_supply_from_dispatch(self, heat_output):
+        """Hourly supply from a dispatched heat output profile (MW in each hour)"""
+        df = pd.DataFrame(index=self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output #Heat delivered in each hour (MWh)
+        df["Fuel Requirement"] = df["Yearly Heat Output"] / self.fuel_to_heat_efficiency 
+        df["Direct CO2 Emissions"] = df["Fuel Requirement"] * self.gas_co2_per_Mwh
+        df["Related CO2 Emissions"] = 0
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"] - self._co2_absorbed
+
+        return df
+
     @staticmethod
     def _safe_divide(numerator, denominator):
         """

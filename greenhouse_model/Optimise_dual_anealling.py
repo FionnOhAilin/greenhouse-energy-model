@@ -133,10 +133,25 @@ class OptimiseEnergySources:
             'CO2': {'capex': 0, 'opex': 0, 'fuel': 0}
         }
 
+    def calculate_exhaust_co2(self, x):
+        """Hourly CO2 available from CHP and boiler exhaust (kg/h)"""
+        chp, geo, gshp, solar, waste, grid, boiler, co2 = x
+
+        #CHP is must-run on its own fuel profile, so its exhaust profile doesnt change
+        chp_exhaust = chp * self.chp_co2_profile 
+
+        #Boiler only burns gas when the dispatch gives it heat to supply
+        boiler_heat = self.calculate_heat_dispatch(x)["Boiler"]
+        boiler_fuel = boiler_heat / EnergyDemand.Boiler.fuel_to_heat_efficiency 
+        boiler_exhaust = boiler_fuel * EnergyDemand.Boiler.gas_co2_per_Mwh * EnergyDemand.Boiler.cc_efficiency
+
+        return chp_exhaust + boiler_exhaust
+
+
     def calculate_co2_import(self, x):
         """Hourly CO2 delivered by the import pump (kg/h), after exhaust has been used"""
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
-        exhaust = chp * self.chp_co2_profile + boiler * self.boiler_co2_profile
+        exhaust = self.calculate_exhaust_co2(x)
         exhaust_used = np.minimum(exhaust, self.co2_effective_demand)
         remaining = self.co2_effective_demand - exhaust_used
         return np.minimum(remaining, co2)  # co2 is pump capacity in kg/h
@@ -144,7 +159,7 @@ class OptimiseEnergySources:
     def calculate_co2_balance(self, x):
         """Hourly CO2 delivered (kg/h): exhaust first, then capped import"""
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
-        exhaust = chp * self.chp_co2_profile + boiler * self.boiler_co2_profile
+        exhaust = self.calculate_exhaust_co2(x)
         exhaust_used = np.minimum(exhaust, self.co2_effective_demand)
         return exhaust_used + self.calculate_co2_import(x)
 
@@ -350,11 +365,12 @@ class OptimiseEnergySources:
 
             if boiler > min_size:
                 boiler_instance = EnergyDemand.Boiler(self.heat_demand, self.light_demand, self.co2_demand)
-                self.boiler_supply = boiler_instance.calculate_supply(boiler, self.boiler_max_power, self.boiler_demand)
+                self.boiler_supply = boiler_instance.calculate_supply_from_dispatch(heat_dispatch["Boiler"])
+                boiler_heat_total = self.boiler_supply["Yearly Heat Output"].sum()
                 boiler_cost = Cost.Boiler(
                     capital_cost=103000 * boiler ** -0.17,
                     base_capex=0,
-                    operational_cost=3900 * boiler / self.boiler_supply["Yearly Heat Output"].sum(),
+                    operational_cost=(3900 * boiler / boiler_heat_total) if boiler_heat_total > 0 else 0,
                     fuel_cost=90.1,
                     power=boiler,
                     energy_output=self.boiler_supply["Yearly Heat Output"].sum(),
