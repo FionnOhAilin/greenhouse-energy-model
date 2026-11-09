@@ -190,7 +190,23 @@ class OptimiseEnergySources:
             "Boiler": boiler_heat,
             "Unmet": unmet,
         }
-    
+
+
+    def report_heat_dispatch(self, x):
+        """Print annual heat and running hours per source for design x, and check the hourly heat balance"""
+        dispatch = self.calculate_heat_dispatch(x)
+        print("\nHeat Dispatch:")
+        for source, hourly in dispatch.items():
+            print(f"  {source}: {hourly.sum():,.1f} MWh over {(hourly > 1e-9).sum()} h")
+
+        delivered_sources = ["CHP", "Geothermal", "GSHP", "Waste Heat", "Boiler"]
+        supplied = sum(dispatch[source] for source in delivered_sources)
+        balance_error = np.abs(supplied + dispatch["Unmet"] - self.heat_hourly_demand).max()
+        print(f"Annual heat demand: {self.heat_hourly_demand.sum():,.1f} MWh")
+        print(f"Largest hourly balance error: {balance_error:.2e} MW")
+        if balance_error > 1e-6:
+            print("WARNING: heat dispatch does not balance")
+
     def calculate_supplies(self, x):
         """Calculate supply of heat, light, and CO2 from given capacities"""
         chp, geo, gshp, solar, waste, grid, boiler, co2 = x
@@ -626,7 +642,7 @@ class OptimiseEnergySources:
                 bounds=bounds,  # Search space limit for each variable
                 x0=x0,  # Starting point in the search space
                 initial_temp=500,  # High initial temperature for exploration, 5230 is the default, 1310.121
-                maxiter=10,  # Max number of global iterations, 1000 is the default, 132
+                maxiter=50,  # Max number of global iterations, 1000 is the default, 132
                 visit=1.01,
                 # Controls the relative weighting of the global (Cauchy) and local (Gaussian) search components,
                 # range is 1 to 3, 2.62 is the default
@@ -727,6 +743,9 @@ def main():
         print(f"Daylight demand: {optimiser.co2_effective_demand.sum():,.0f} kg")
         print(f"Daylight shortfall: {co2_short.sum():,.0f} kg")
         print(f"Daylight hours with shortfall: {(co2_short > 1e-6).sum()}")
+
+        # Heat dispatch summary for the best design, and an hourly energy balance check
+        optimiser.report_heat_dispatch(result.x)
 
         # Print optimisation statistics
         print("\nOptimisation Statistics:")

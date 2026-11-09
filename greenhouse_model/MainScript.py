@@ -137,6 +137,7 @@ def main():
     # Step 3: Run optimisation
     print("\nRunning optimisation with selected energy sources...")
     result, optimiser, original_max_powers = run_optimisation(heat_demand, light_demand, co2_demand, source_config, climate_data)
+    optimiser.report_heat_dispatch(result.x)
     print(f"Iterations (best run): {result.nit}, function evaluations: {result.nfev}")
 
 
