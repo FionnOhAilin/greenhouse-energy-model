@@ -43,6 +43,7 @@
 - Boiler.Calculate_supply_from_dispatch(): The boiler is now costed on its dispatched heat ouput (fuel = heat / 0.775). It is heat led onl. Added a zero-output guard to boiler opex.
 - Added calculate_exhaust_co2(): to the optimiser, boiler exhaust now follows the dispatched gas use.
 - Report_heat_dispatch(): prints annual heat in MWh and running hours for each source and an hourly energy balance check. Called from both the optimisers Main() and MainScript.py so it doesnt matter which i run.
+- Added `check_hybrid_designs.py`: costs GSHP + boiler splits (no waste heat) directly through `_calculate_objective`, without the optimiser. Cheapest: 35% GSHP (0.0725 MW GSHP + 0.1346 MW boiler) at £109,682. The optimiser's no-waste-heat answer (GSHP alone, £120,735) is 9.2% more expensive and was the worst of all splits tested. Cost curve is flat between 30% and 40% GSHP (<£300). Target for optimiser tuning: £109,682 or lower.
 
 
 ### Fixed
