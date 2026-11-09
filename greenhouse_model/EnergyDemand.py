@@ -114,6 +114,17 @@ class Geothermal(EnergySource):
 
         return df
 
+    def calculate_supply_from_dispatch(self, heat_output):
+        """Hourly supply from a dispatched heat output profile"""
+        df = pd.DataFrame(index=self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output # Heat delivered in each hour (MWh)
+        df["Electricity for Heat"] = df["Yearly Heat Output"] / self.cop #Electricity drawn by the pumps
+        df["Direct CO2 Emissions"] = 0
+        df["Related CO2 Emissions"] = self.grid_emissions * df["Electricity for Heat"]
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"]
+
+        return df 
+
 
 class GSHP(EnergySource):
     cop = 3.5  # Coefficient of performance of GSHP system (Taken from UG Heat Pump)
@@ -139,6 +150,16 @@ class GSHP(EnergySource):
 
         return df
 
+    def calculate_supply_from_dispatch(self,heat_output):
+        """   Hourly supply from dispatched heat profile outputs """
+        df = pd.DataFrame(index = self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output  # Heat delivered each hour (MWh)
+        df["Electricity for Heat"] = df["Yearly Heat Output"] / self.cop  # Electricity drawn by the heat pump
+        df["Direct CO2 Emissions"] = 0
+        df["Related CO2 Emissions"] = self.grid_emissions * df["Electricity for Heat"]
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"]
+
+        return df
 
 class WasteHeat(EnergySource):
     exchanger_efficiency = 0.93  # SEAI Steam Systems
@@ -164,6 +185,20 @@ class WasteHeat(EnergySource):
         df["Yearly Heat Output"] = self._heat_demand * x / wasteheat_max_power
 
         return df
+
+    def calculate_supply_from_dispatch(self, heat_output):
+        """Hourly supply from a dispatched heat output profile""" 
+
+        df = pd.DataFrame(index = self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output #Heat delivered to the greenhouse each hour (MWh)
+        #Steam drawn from the supplier is more than the heat delivered because of exchanger losses
+        df["Steam Required"] = df["Yearly Heat Output"] / self.exchanger_efficiency 
+        df["Direct CO2 Emissions"] = 0
+        # (steam / waste-to-heat efficiency) / LHV per tonne of waste * kgCO2 per tonne of waste
+        df["Related CO2 Emissions"] = ((df["Steam Required"] / 0.37 ) / 2.78 ) * 425
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"]
+
+        return df 
 
 
 class SolarPV(EnergySource):
@@ -245,6 +280,17 @@ class Boiler(EnergySource):
         df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"] - self._co2_absorbed
         # Total yearly electricity output from boiler system in MWh
         df["Yearly Heat Output"] = df["Fuel Requirement"] * self.fuel_to_heat_efficiency
+
+        return df
+
+    def calculate_supply_from_dispatch(self, heat_output):
+        """Hourly supply from a dispatched heat output profile (MW in each hour)"""
+        df = pd.DataFrame(index=self._heat_demand.index)
+        df["Yearly Heat Output"] = heat_output #Heat delivered in each hour (MWh)
+        df["Fuel Requirement"] = df["Yearly Heat Output"] / self.fuel_to_heat_efficiency 
+        df["Direct CO2 Emissions"] = df["Fuel Requirement"] * self.gas_co2_per_Mwh
+        df["Related CO2 Emissions"] = 0
+        df["Net CO2 Emissions"] = df["Direct CO2 Emissions"] + df["Related CO2 Emissions"] - self._co2_absorbed
 
         return df
 
